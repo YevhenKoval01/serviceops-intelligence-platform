@@ -1,0 +1,128 @@
+name: serviceops-intelligence-platform
+
+services:
+  postgres:
+    image: postgres:17.5-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-serviceops}
+      POSTGRES_USER: ${POSTGRES_USER:-serviceops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-serviceops_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - serviceops
+
+  kafka:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.18
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://kafka:9092,external://localhost:19092
+    ports:
+      - "${KAFKA_PORT:-19092}:19092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+    networks:
+      - serviceops
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-serviceops}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-serviceops}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-serviceops_dev}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    networks:
+      - serviceops
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MODEL_PATH: /app/model/serviceops-baseline.joblib
+    ports:
+      - "${AI_SERVICE_PORT:-8000}:8000"
+    volumes:
+      - ai-model:/app/model
+    depends_on:
+      kafka:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 15s
+    networks:
+      - serviceops
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - serviceops
+
+volumes:
+  postgres-data:
+  ai-model:
+
+networks:
+  serviceops:
+    driver: bridge

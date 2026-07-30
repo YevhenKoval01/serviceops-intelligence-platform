@@ -1,0 +1,41 @@
+title,description,category,priority
+Cannot sign in,My password is accepted but the customer portal keeps returning me to the login page.,ACCESS,MEDIUM
+New starter needs account,Please create standard application access for the employee joining next Monday.,ACCESS,LOW
+Administrator locked out,The only production administrator cannot pass multi factor authentication.,ACCESS,HIGH
+VPN permission missing,My account connects to VPN but has no permission to reach internal systems.,ACCESS,MEDIUM
+Reset authentication token,The mobile authenticator was replaced and the old token must be reset.,ACCESS,LOW
+Finance team access lost,All finance users suddenly receive access denied for the reporting portal.,ACCESS,HIGH
+Role request,Please add read only inventory permissions to my existing user account.,ACCESS,LOW
+SSO login loop,Single sign on loops between the identity provider and the dashboard.,ACCESS,MEDIUM
+Privileged account expired,Emergency privileged credentials expired during an active incident.,ACCESS,HIGH
+Shared mailbox permission,I need access to the shared customer support mailbox for my new role.,ACCESS,LOW
+Invoice total is wrong,The latest invoice includes a duplicate monthly subscription charge.,BILLING,MEDIUM
+Refund has not arrived,The approved refund is missing from our bank account after ten business days.,BILLING,MEDIUM
+Payment service unavailable,Every customer card payment is failing during checkout right now.,BILLING,HIGH
+Update billing address,Please change the company address printed on future invoices.,BILLING,LOW
+Unexpected renewal charge,We cancelled before renewal but the annual fee was still collected.,BILLING,HIGH
+Need invoice copy,Please send a PDF copy of the March invoice for our accounting records.,BILLING,LOW
+Tax value incorrect,The invoice applies sales tax although our exemption certificate is active.,BILLING,MEDIUM
+Subscription downgrade credit,Confirm the credit amount after reducing our licensed user count.,BILLING,LOW
+Duplicate card transactions,Several customers see the same purchase charged twice this morning.,BILLING,HIGH
+Purchase order reference,Add our new purchase order number to the next billing statement.,BILLING,LOW
+Package tracking stalled,The tracking page has shown the parcel at the same depot for four days.,DELIVERY,MEDIUM
+Critical parts delayed,Replacement hardware for the production server missed the guaranteed arrival.,DELIVERY,HIGH
+Change delivery address,Please redirect the unopened parcel to our new office reception.,DELIVERY,LOW
+Shipment arrived damaged,The delivered monitor has a cracked screen and crushed packaging.,DELIVERY,MEDIUM
+Medication shipment missing,The temperature controlled urgent parcel was marked delivered but is absent.,DELIVERY,HIGH
+Request proof of delivery,Please provide the recipient signature for last week's shipment.,DELIVERY,LOW
+Wrong item delivered,The box contains a keyboard instead of the ordered network switch.,DELIVERY,MEDIUM
+Courier did not collect,The scheduled courier collection was missed for the second time.,DELIVERY,MEDIUM
+Production equipment held,Essential factory equipment is held at customs and production will stop.,DELIVERY,HIGH
+Delivery window question,What time should our office expect the standard stationery delivery.,DELIVERY,LOW
+Application crashes,The desktop client closes immediately whenever a user opens a saved report.,TECHNICAL,MEDIUM
+Production API is down,All API requests return server errors and customer workflows are blocked.,TECHNICAL,HIGH
+How to export data,Please explain how to export a project list to a comma separated file.,TECHNICAL,LOW
+Database connection timeout,The application cannot connect to the primary database after maintenance.,TECHNICAL,HIGH
+Screen layout issue,One button overlaps the heading on a small tablet display.,TECHNICAL,LOW
+Reports load slowly,The weekly operations report takes more than three minutes to open.,TECHNICAL,MEDIUM
+Data synchronization stopped,New orders have not synchronized to the warehouse system since midnight.,TECHNICAL,HIGH
+Browser warning,The settings page shows a console warning but continues to work normally.,TECHNICAL,LOW
+File upload fails,Uploading documents over five megabytes ends with an unknown error.,TECHNICAL,MEDIUM
+Service memory alarm,The production service is restarting repeatedly after exhausting available memory.,TECHNICAL,HIGH

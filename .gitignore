@@ -1,0 +1,36 @@
+# Environment
+.env
+!.env.example
+
+# Local verification tools
+.tools/
+
+# Java
+backend/target/
+*.class
+
+# Python
+ai-service/.venv/
+ai-service/.pytest_cache/
+ai-service/.ruff_cache/
+ai-service/.mypy_cache/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+ai-service/model/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# IDE and operating system
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs and local runtime data
+*.log
+tmp/
