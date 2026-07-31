@@ -5,19 +5,29 @@ interface TicketTableProps {
   tickets: Ticket[];
   selectedId: string | null;
   onSelect: (ticket: Ticket) => void;
+  delayedPredictionIds?: Set<string>;
 }
 
-function Confidence({ ticket }: { ticket: Ticket }) {
+function Confidence({ ticket, delayed }: { ticket: Ticket; delayed: boolean }) {
   if (ticket.predictionConfidence === null) {
-    return <span className="pending-prediction">Analyzing…</span>;
+    return (
+      <span className={delayed ? "delayed-prediction" : "pending-prediction"} aria-live="polite">
+        {delayed ? "Delayed" : "Analyzing…"}
+      </span>
+    );
   }
   return <span>{Math.round(ticket.predictionConfidence * 100)}%</span>;
 }
 
-export function TicketTable({ tickets, selectedId, onSelect }: TicketTableProps) {
+export function TicketTable({
+  tickets,
+  selectedId,
+  onSelect,
+  delayedPredictionIds = new Set(),
+}: TicketTableProps) {
   if (tickets.length === 0) {
     return (
-      <div className="empty-state">
+      <div className="empty-state" role="status">
         <div className="empty-mark">0</div>
         <h3>No tickets in the queue</h3>
         <p>Create the first request to watch the event-driven prediction flow.</p>
@@ -28,14 +38,17 @@ export function TicketTable({ tickets, selectedId, onSelect }: TicketTableProps)
   return (
     <div className="table-scroll">
       <table>
+        <caption className="visually-hidden">
+          Support tickets with current status and machine-learning prediction
+        </caption>
         <thead>
           <tr>
-            <th>Ticket</th>
-            <th>Status</th>
-            <th>Category</th>
-            <th>Priority</th>
-            <th>Confidence</th>
-            <th>Created</th>
+            <th scope="col">Ticket</th>
+            <th scope="col">Status</th>
+            <th scope="col">Category</th>
+            <th scope="col">Priority</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Created</th>
           </tr>
         </thead>
         <tbody>
@@ -43,10 +56,14 @@ export function TicketTable({ tickets, selectedId, onSelect }: TicketTableProps)
             <tr
               key={ticket.id}
               className={ticket.id === selectedId ? "selected-row" : undefined}
-              onClick={() => onSelect(ticket)}
             >
               <td>
-                <button className="ticket-link" type="button" onClick={() => onSelect(ticket)}>
+                <button
+                  className="ticket-link"
+                  type="button"
+                  aria-pressed={ticket.id === selectedId}
+                  onClick={() => onSelect(ticket)}
+                >
                   <strong>{ticket.title}</strong>
                   <span>#{ticket.id.slice(0, 8)}</span>
                 </button>
@@ -67,9 +84,11 @@ export function TicketTable({ tickets, selectedId, onSelect }: TicketTableProps)
                 )}
               </td>
               <td>
-                <Confidence ticket={ticket} />
+                <Confidence ticket={ticket} delayed={delayedPredictionIds.has(ticket.id)} />
               </td>
-              <td>{new Date(ticket.createdAt).toLocaleString()}</td>
+              <td>
+                <time dateTime={ticket.createdAt}>{new Date(ticket.createdAt).toLocaleString()}</time>
+              </td>
             </tr>
           ))}
         </tbody>

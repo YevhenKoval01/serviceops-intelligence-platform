@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
 import type { Ticket } from "../types";
@@ -26,4 +27,39 @@ test("renders ticket prediction fields in the queue", () => {
   expect(screen.getByText("Technical")).toBeInTheDocument();
   expect(screen.getByText("High")).toBeInTheDocument();
   expect(screen.getByText("91%")).toBeInTheDocument();
+});
+
+test("opens a ticket from a keyboard-accessible button", async () => {
+  const user = userEvent.setup();
+  const onSelect = vi.fn();
+  render(<TicketTable tickets={[ticket]} selectedId={null} onSelect={onSelect} />);
+
+  await user.click(screen.getByRole("button", { name: /Production API unavailable/ }));
+
+  expect(onSelect).toHaveBeenCalledWith(ticket);
+});
+
+test("renders empty and delayed-prediction states", () => {
+  const { rerender } = render(
+    <TicketTable tickets={[]} selectedId={null} onSelect={vi.fn()} />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("No tickets in the queue");
+
+  rerender(
+    <TicketTable
+      tickets={[
+        {
+          ...ticket,
+          predictedCategory: null,
+          predictedPriority: null,
+          predictionConfidence: null,
+          modelVersion: null,
+        },
+      ]}
+      selectedId={null}
+      onSelect={vi.fn()}
+      delayedPredictionIds={new Set([ticket.id])}
+    />,
+  );
+  expect(screen.getByText("Delayed")).toBeInTheDocument();
 });

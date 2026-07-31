@@ -65,13 +65,13 @@ def predict(request: PredictionRequest) -> PredictionResponse:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     kafka_enabled = os.getenv("KAFKA_ENABLED", "true").lower() == "true"
-    worker_running = worker is not None and worker.is_running
-    if model is None or (kafka_enabled and not worker_running):
+    worker_ready = worker is not None and worker.is_ready
+    if model is None or (kafka_enabled and not worker_ready):
         raise HTTPException(status_code=503, detail="Prediction service is not ready")
     return HealthResponse(
         status="UP",
         modelLoaded=model is not None,
-        kafkaWorkerRunning=worker_running if kafka_enabled else False,
+        kafkaWorkerRunning=worker_ready if kafka_enabled else False,
     )
 
 

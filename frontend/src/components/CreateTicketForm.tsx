@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { createTicket } from "../api";
 import type { CreateTicketInput, Priority, Ticket } from "../types";
@@ -20,16 +20,36 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   function validate(): FormErrors {
     const nextErrors: FormErrors = {};
-    if (form.title.trim().length < 5) {
+    const titleLength = form.title.trim().length;
+    const descriptionLength = form.description.trim().length;
+    if (titleLength < 5) {
       nextErrors.title = "Use at least 5 characters.";
+    } else if (titleLength > 150) {
+      nextErrors.title = "Use no more than 150 characters.";
     }
-    if (form.description.trim().length < 10) {
+    if (descriptionLength < 10) {
       nextErrors.description = "Use at least 10 characters.";
+    } else if (descriptionLength > 4000) {
+      nextErrors.description = "Use no more than 4,000 characters.";
     }
     return nextErrors;
+  }
+
+  function changeField(field: "title" | "description", value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setSubmitError(null);
+    setSuccessMessage(null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -37,10 +57,16 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
+      if (nextErrors.title) {
+        titleRef.current?.focus();
+      } else {
+        descriptionRef.current?.focus();
+      }
       return;
     }
     setSubmitting(true);
     setSubmitError(null);
+    setSuccessMessage(null);
     try {
       const ticket = await createTicket({
         ...form,
@@ -48,7 +74,9 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
         description: form.description.trim(),
       });
       setForm(initialForm);
+      setSuccessMessage("Ticket created. Prediction is now in progress.");
       onCreated(ticket);
+      titleRef.current?.focus();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Could not create the ticket.");
     } finally {
@@ -66,16 +94,20 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
         <span className="async-note">Prediction runs asynchronously</span>
       </div>
 
-      <form onSubmit={handleSubmit} noValidate>
+      <form onSubmit={handleSubmit} noValidate aria-busy={submitting}>
         <div className="form-field">
           <label htmlFor="ticket-title">Title</label>
           <input
+            ref={titleRef}
             id="ticket-title"
+            name="title"
+            required
+            autoComplete="off"
             value={form.title}
             maxLength={150}
             aria-invalid={Boolean(errors.title)}
             aria-describedby={errors.title ? "ticket-title-error" : undefined}
-            onChange={(event) => setForm({ ...form, title: event.target.value })}
+            onChange={(event) => changeField("title", event.target.value)}
             placeholder="Briefly describe the issue"
           />
           {errors.title && (
@@ -83,18 +115,22 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
               {errors.title}
             </span>
           )}
+          <span className="character-count">{form.title.length}/150</span>
         </div>
 
         <div className="form-field">
           <label htmlFor="ticket-description">Description</label>
           <textarea
+            ref={descriptionRef}
             id="ticket-description"
+            name="description"
+            required
             value={form.description}
             maxLength={4000}
             rows={4}
             aria-invalid={Boolean(errors.description)}
             aria-describedby={errors.description ? "ticket-description-error" : undefined}
-            onChange={(event) => setForm({ ...form, description: event.target.value })}
+            onChange={(event) => changeField("description", event.target.value)}
             placeholder="Include the impact, symptoms, and relevant context"
           />
           {errors.description && (
@@ -102,6 +138,7 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
               {errors.description}
             </span>
           )}
+          <span className="character-count">{form.description.length}/4,000</span>
         </div>
 
         <div className="form-actions">
@@ -109,6 +146,7 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
             <label htmlFor="reported-priority">Reported priority</label>
             <select
               id="reported-priority"
+              name="reportedPriority"
               value={form.reportedPriority ?? ""}
               onChange={(event) =>
                 setForm({
@@ -130,6 +168,11 @@ export function CreateTicketForm({ onCreated }: CreateTicketFormProps) {
         {submitError && (
           <div className="inline-error" role="alert">
             {submitError}
+          </div>
+        )}
+        {successMessage && (
+          <div className="inline-success" role="status">
+            {successMessage}
           </div>
         )}
       </form>

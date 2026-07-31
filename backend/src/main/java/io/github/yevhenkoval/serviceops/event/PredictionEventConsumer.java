@@ -8,6 +8,7 @@ import io.github.yevhenkoval.serviceops.ticket.TicketNotFoundException;
 import io.github.yevhenkoval.serviceops.ticket.TicketRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class PredictionEventConsumer {
 
     private static final Set<String> CATEGORIES = Set.of("ACCESS", "BILLING", "DELIVERY", "TECHNICAL");
+    private static final Set<String> EVENT_FIELDS = Set.of(
+            "eventId",
+            "eventType",
+            "eventVersion",
+            "occurredAt",
+            "correlationId",
+            "ticketId",
+            "payload"
+    );
+    private static final Set<String> PAYLOAD_FIELDS = Set.of(
+            "category",
+            "priority",
+            "confidence",
+            "modelVersion"
+    );
 
     private final ObjectMapper objectMapper;
     private final TicketRepository ticketRepository;
@@ -70,7 +86,11 @@ public class PredictionEventConsumer {
 
     private EventEnvelope parse(String message) {
         try {
-            return objectMapper.readValue(message, EventEnvelope.class);
+            JsonNode root = objectMapper.readTree(message);
+            if (!hasExactFields(root, EVENT_FIELDS)) {
+                throw new IllegalArgumentException("Prediction event does not match contract v1");
+            }
+            return objectMapper.treeToValue(root, EventEnvelope.class);
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("Prediction event is not valid JSON", exception);
         }
@@ -85,15 +105,27 @@ public class PredictionEventConsumer {
                 || event.correlationId() == null
                 || event.occurredAt() == null
                 || payload == null
+                || !hasExactFields(payload, PAYLOAD_FIELDS)
                 || !payload.hasNonNull("category")
                 || !CATEGORIES.contains(payload.get("category").asText())
                 || !payload.hasNonNull("priority")
                 || !isPriority(payload.get("priority").asText())
                 || !payload.hasNonNull("confidence")
                 || !isConfidence(payload.get("confidence"))
-                || !payload.hasNonNull("modelVersion")) {
+                || !payload.hasNonNull("modelVersion")
+                || !payload.get("modelVersion").isTextual()
+                || payload.get("modelVersion").asText().isBlank()) {
             throw new IllegalArgumentException("Prediction event does not match contract v1");
         }
+    }
+
+    private boolean hasExactFields(JsonNode node, Set<String> expected) {
+        if (node == null || !node.isObject()) {
+            return false;
+        }
+        Set<String> actual = new HashSet<>();
+        node.fieldNames().forEachRemaining(actual::add);
+        return actual.equals(expected);
     }
 
     private boolean isPriority(String value) {

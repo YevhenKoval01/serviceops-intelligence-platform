@@ -49,6 +49,7 @@ services:
       - serviceops
 
   backend:
+    init: true
     build:
       context: ./backend
     environment:
@@ -68,16 +69,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 24
-      start_period: 20s
+      start_period: 30s
+    stop_grace_period: 20s
     networks:
       - serviceops
 
   ai-service:
+    init: true
     build:
       context: .
       dockerfile: ai-service/Dockerfile
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ENABLED: "true"
       MODEL_PATH: /app/model/serviceops-baseline.joblib
     ports:
       - "${AI_SERVICE_PORT:-8000}:8000"
@@ -85,8 +89,6 @@ services:
       - ai-model:/app/model
     depends_on:
       kafka:
-        condition: service_healthy
-      backend:
         condition: service_healthy
     healthcheck:
       test:
@@ -97,7 +99,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 18
-      start_period: 15s
+      start_period: 25s
+    stop_grace_period: 20s
     networks:
       - serviceops
 

@@ -22,6 +22,34 @@
   box-sizing: border-box;
 }
 
+.skip-link {
+  position: fixed;
+  z-index: 30;
+  top: 10px;
+  left: 10px;
+  padding: 10px 14px;
+  color: white;
+  background: var(--green);
+  border-radius: 8px;
+  transform: translateY(-160%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -292,6 +320,13 @@ select:hover {
   font-size: 12px;
 }
 
+.character-count {
+  align-self: flex-end;
+  margin-top: -2px;
+  color: #7b8780;
+  font-size: 11px;
+}
+
 .form-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -340,13 +375,27 @@ select:hover {
   background: #dfe9e3;
 }
 
-.inline-error {
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.inline-error,
+.inline-success {
   grid-column: 1 / -1;
   padding: 10px 12px;
-  color: #8d2f1c;
-  background: var(--red-soft);
   border-radius: 8px;
   font-size: 13px;
+}
+
+.inline-error {
+  color: #8d2f1c;
+  background: var(--red-soft);
+}
+
+.inline-success {
+  color: var(--green);
+  background: var(--green-soft);
 }
 
 .queue-panel {
@@ -488,6 +537,11 @@ tbody tr:last-child td {
   animation: pulse 1.2s infinite;
 }
 
+.delayed-prediction {
+  color: #a13722;
+  font-weight: 700;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.35;
@@ -533,9 +587,25 @@ tbody tr:last-child td {
   margin-top: 8px;
 }
 
-.detail-panel {
+.detail-layer {
   position: fixed;
   z-index: 10;
+  inset: 0;
+}
+
+.detail-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  background: rgba(23, 34, 29, 0.32);
+  border: 0;
+  cursor: default;
+}
+
+.detail-panel {
+  position: fixed;
+  z-index: 11;
   top: 0;
   right: 0;
   overflow-y: auto;
@@ -620,6 +690,12 @@ tbody tr:last-child td {
   gap: 8px;
 }
 
+.status-controls + .inline-success,
+.status-controls + .inline-error,
+.status-controls ~ .inline-error {
+  margin-top: 14px;
+}
+
 @media (max-width: 760px) {
   .topbar {
     padding: 0 5vw;
@@ -669,5 +745,12 @@ tbody tr:last-child td {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .state-dot,
+  .pending-prediction::before {
+    border: 1px solid CanvasText;
   }
 }

@@ -78,6 +78,34 @@ class PredictionEventConsumerTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void rejectsOutOfRangeConfidence() {
+        UUID ticketId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> consumer.consume(
+                eventJson(eventId, ticketId).replace("\"confidence\": 0.91", "\"confidence\": 1.1")
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Prediction event does not match contract v1");
+
+        verify(ticketRepository, never()).findById(any());
+        verify(processedEventRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsUnexpectedContractFields() {
+        UUID ticketId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> consumer.consume(
+                eventJson(eventId, ticketId).replace(
+                        "\"modelVersion\": \"baseline-1\"",
+                        "\"modelVersion\": \"baseline-1\", \"unexpected\": true"
+                )
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Prediction event does not match contract v1");
+    }
+
     private String eventJson(UUID eventId, UUID ticketId) {
         return """
                 {

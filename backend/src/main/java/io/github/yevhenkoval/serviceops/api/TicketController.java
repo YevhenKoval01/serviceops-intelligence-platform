@@ -1,6 +1,8 @@
 package io.github.yevhenkoval.serviceops.api;
 
 import io.github.yevhenkoval.serviceops.ticket.TicketService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -24,27 +26,39 @@ public class TicketController {
         this.ticketService = ticketService;
     }
 
+    @Operation(
+            summary = "Create a ticket",
+            description = "Persists a ticket immediately and starts asynchronous classification after commit."
+    )
+    @ApiResponse(responseCode = "201", description = "Ticket created; prediction fields may still be null")
+    @ApiResponse(responseCode = "400", description = "Request validation failed")
     @PostMapping("/tickets")
     ResponseEntity<TicketResponse> create(@Valid @RequestBody CreateTicketRequest request) {
         TicketResponse response = TicketResponse.from(ticketService.create(request));
         return ResponseEntity.created(URI.create("/api/tickets/" + response.id())).body(response);
     }
 
+    @Operation(summary = "List tickets", description = "Returns newest tickets first.")
     @GetMapping("/tickets")
     List<TicketResponse> list() {
         return ticketService.list().stream().map(TicketResponse::from).toList();
     }
 
+    @Operation(summary = "Get a ticket")
+    @ApiResponse(responseCode = "404", description = "Ticket does not exist")
     @GetMapping("/tickets/{id}")
     TicketResponse get(@PathVariable UUID id) {
         return TicketResponse.from(ticketService.get(id));
     }
 
+    @Operation(summary = "Update ticket status")
+    @ApiResponse(responseCode = "404", description = "Ticket does not exist")
     @PatchMapping("/tickets/{id}/status")
     TicketResponse updateStatus(@PathVariable UUID id, @Valid @RequestBody UpdateStatusRequest request) {
         return TicketResponse.from(ticketService.updateStatus(id, request.status()));
     }
 
+    @Operation(summary = "Get ticket queue totals by status")
     @GetMapping("/summary")
     SummaryResponse summary() {
         return ticketService.summary();

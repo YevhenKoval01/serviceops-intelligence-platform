@@ -26,3 +26,18 @@ def test_predict_endpoint_returns_structured_validation_error() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["type"] == "string_too_short"
+
+
+def test_predict_endpoint_validates_trimmed_input() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/predict",
+            json={
+                "title": "     ",
+                "description": "          ",
+            },
+        )
+
+    assert response.status_code == 422
+    fields = {entry["loc"][-1] for entry in response.json()["detail"]}
+    assert fields == {"title", "description"}

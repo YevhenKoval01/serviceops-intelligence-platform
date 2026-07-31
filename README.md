@@ -5,11 +5,16 @@ tickets immediately and classifies them asynchronously. The core vertical slice 
 React, Spring Boot, PostgreSQL, Kafka, FastAPI, and a real scikit-learn model in one
 locally reproducible system.
 
-> Project status: **Baseline initialized - baseline polish still in progress**
+> Project status: **Baseline complete - active development**
 
 The machine-learning model is an educational baseline trained on a small bundled
 synthetic dataset. Its measured validation scores are available from `/model-info`; they
 must not be interpreted as production accuracy.
+
+![ServiceOps operator workspace showing the live classified ticket queue](docs/images/serviceops-operator-workspace.png)
+
+_Real local Compose runtime after ticket creation, asynchronous classification, and a
+status update through the rendered React interface._
 
 ## Core event flow
 
@@ -36,7 +41,8 @@ sequenceDiagram
     API-->>UI: Ticket with category, priority, confidence
 ```
 
-The event row is committed in the same PostgreSQL transaction as the ticket. 
+The event row is committed in the same PostgreSQL transaction as the ticket. Publication
+runs after commit; a durable outbox relay remains the documented reliability improvement.
 
 ## Technology choices
 
@@ -49,6 +55,7 @@ The event row is committed in the same PostgreSQL transaction as the ticket.
 | Redpanda | Pinned local Kafka-protocol broker with three versioned topics |
 | FastAPI, scikit-learn, pandas | HTTP model inspection plus asynchronous ticket inference |
 | Docker Compose | Health-gated local topology for all five services |
+| GitHub Actions | Independent Java, Python, frontend, and container image quality jobs |
 
 ## Run locally
 
@@ -102,8 +109,11 @@ Backend (Java 21 and Maven 3.9+):
 
 ```bash
 cd backend
-mvn test
+mvn --batch-mode --no-transfer-progress verify
 ```
+
+The PostgreSQL repository integration test uses Testcontainers and requires a working
+Docker engine.
 
 AI service (Python 3.12+):
 
@@ -143,11 +153,39 @@ JSON Schema contracts live in [`contracts`](contracts). Invalid consumer message
 sent to `serviceops.ticket.invalid.v1`, and consumers use bounded retries or explicit
 invalid-message handling.
 
+## Technical documentation
+
+- [Architecture and reliability behavior](docs/architecture.md)
+- [API requests, responses, and error examples](docs/api-examples.md)
+- [Test strategy and acceptance procedure](docs/test-strategy.md)
+- [Phased roadmap](docs/roadmap.md)
+
+## Verified baseline
+
+The final local regression on 31 July 2026 measured:
+
+- Java: 13 tests passed, including PostgreSQL 17, Flyway, JPA, and JSONB through
+  Testcontainers.
+- Python: Ruff passed and 11 pytest tests passed.
+- Frontend: ESLint passed, 11 Vitest tests passed, TypeScript compiled, and the Vite
+  production bundle completed.
+- Compose: configuration validation passed; all three images built; PostgreSQL, Redpanda,
+  Spring Boot, FastAPI, and React/Nginx reported healthy.
+- End to end: the smoke test passed twice after separate clean-volume starts.
+- Runtime reliability: both event topics were inspected, prediction replay was idempotent,
+  malformed input reached the structured invalid-event topic, PostgreSQL/backend restarts
+  preserved a ticket, and the persisted model hash survived an AI-service restart.
+- Browser: ticket creation, prediction polling, accessible detail display, and status
+  update passed through the real rendered application with no browser console errors.
+- Model: 40 synthetic training rows; the fixed held-out split measured `0.60` category
+  accuracy and `0.50` priority accuracy. These small-sample scores are reproducibility
+  evidence, not production performance claims.
+
 ## Current limitations
 
 - Ticket-created publication is post-commit, not yet driven by a durable outbox relay.
 - The synthetic model dataset is deliberately small and non-production.
-- CI, clean-state double-run evidence, repository screenshot, expanded documentation,
-  additional integration tests, and final error-handling polish in progress.
 - Authentication, cloud deployment, analytics, RAG, observability, and Kubernetes are
   roadmap work and are not represented as complete.
+- Browser-engine automation, load measurements, and security scanning are Phase 1.3 work;
+  the current cross-service smoke test uses public HTTP APIs.
