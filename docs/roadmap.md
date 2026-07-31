@@ -23,7 +23,6 @@ automated quality checks. The phases below begin only after the baseline remains
 
 ## Phase 1.3: reliability and QA
 
-- Durable transactional outbox relay.
 - Schema Registry or equivalent producer/consumer compatibility checks.
 - Playwright browser flows and a Postman/Newman API collection.
 - Load tests with measured latency and throughput.

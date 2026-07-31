@@ -7,8 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.yevhenkoval.serviceops.api.CreateTicketRequest;
-import io.github.yevhenkoval.serviceops.event.EventEnvelope;
-import io.github.yevhenkoval.serviceops.event.EventPublisher;
+import io.github.yevhenkoval.serviceops.event.TicketEvent;
 import io.github.yevhenkoval.serviceops.event.TicketEventRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -28,17 +27,13 @@ class TicketServiceTest {
     @Mock
     private TicketEventRepository eventRepository;
 
-    @Mock
-    private EventPublisher eventPublisher;
-
     @Test
-    void createsTicketStoresEventAndPublishesContract() {
+    void createsTicketAndStoresUnpublishedOutboxEventInTheSameTransaction() {
         when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
         Instant now = Instant.parse("2026-07-30T10:00:00Z");
         var service = new TicketService(
                 ticketRepository,
                 eventRepository,
-                eventPublisher,
                 new ObjectMapper().findAndRegisterModules(),
                 Clock.fixed(now, ZoneOffset.UTC)
         );
@@ -51,11 +46,15 @@ class TicketServiceTest {
 
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.OPEN);
         assertThat(ticket.getCreatedAt()).isEqualTo(now);
-        verify(eventRepository).save(any());
-        ArgumentCaptor<EventEnvelope> eventCaptor = ArgumentCaptor.forClass(EventEnvelope.class);
-        verify(eventPublisher).publishTicketCreated(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().eventType()).isEqualTo("ticket.created");
-        assertThat(eventCaptor.getValue().ticketId()).isEqualTo(ticket.getId());
-        assertThat(eventCaptor.getValue().payload().get("title").asText()).isEqualTo("VPN access fails");
+        ArgumentCaptor<TicketEvent> eventCaptor = ArgumentCaptor.forClass(TicketEvent.class);
+        verify(eventRepository).save(eventCaptor.capture());
+        TicketEvent event = eventCaptor.getValue();
+        assertThat(event.getEventType()).isEqualTo("ticket.created");
+        assertThat(event.getTicketId()).isEqualTo(ticket.getId());
+        assertThat(event.getEventPayload().get("payload").get("title").asText())
+                .isEqualTo("VPN access fails");
+        assertThat(event.isPublished()).isFalse();
+        assertThat(event.getPublishAttempts()).isZero();
+        assertThat(event.getNextAttemptAt()).isEqualTo(now);
     }
 }

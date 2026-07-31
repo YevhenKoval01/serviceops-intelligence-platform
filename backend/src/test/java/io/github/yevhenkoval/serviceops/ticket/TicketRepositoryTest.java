@@ -6,12 +6,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.yevhenkoval.serviceops.event.TicketEvent;
 import io.github.yevhenkoval.serviceops.event.TicketEventRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -35,6 +43,9 @@ class TicketRepositoryTest {
 
     @Autowired
     private TicketEventRepository ticketEventRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
@@ -69,5 +80,100 @@ class TicketRepositoryTest {
                 .get()
                 .extracting(TicketEvent::getEventPayload)
                 .satisfies(json -> assertThat(json.get("eventType").asText()).isEqualTo("ticket.created"));
+        assertThat(ticketEventRepository.findById(eventId))
+                .get()
+                .satisfies(event -> {
+                    assertThat(event.isPublished()).isFalse();
+                    assertThat(event.getPublishAttempts()).isZero();
+                    assertThat(event.getNextAttemptAt()).isEqualTo(now);
+                });
+    }
+
+    @Test
+    void locksOnlyDueUnpublishedOutboxEvents() {
+        Instant now = Instant.parse("2026-07-30T10:00:00Z");
+        UUID ticketId = UUID.randomUUID();
+        ticketRepository.saveAndFlush(new Ticket(
+                ticketId,
+                "Warehouse scanner outage",
+                "All warehouse scanners are unable to connect to the inventory service.",
+                Priority.HIGH,
+                now
+        ));
+
+        TicketEvent due = event(ticketId, now);
+        TicketEvent delayed = event(ticketId, now.plusMillis(1));
+        delayed.markPublicationFailed(now.plusSeconds(30), "broker unavailable");
+        TicketEvent published = event(ticketId, now.plusMillis(2));
+        published.markPublished(now.plusSeconds(1));
+        ticketEventRepository.saveAllAndFlush(List.of(due, delayed, published));
+
+        assertThat(ticketEventRepository.lockPendingForPublication(now.plusSeconds(1), 10))
+                .extracting(TicketEvent::getId)
+                .containsExactly(due.getId());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void skipsRowsLockedByAnotherRelayTransaction() throws Exception {
+        Instant now = Instant.parse("2026-07-30T10:00:00Z");
+        UUID ticketId = UUID.randomUUID();
+        UUID eventId = new TransactionTemplate(transactionManager).execute(status -> {
+            ticketRepository.save(new Ticket(
+                    ticketId,
+                    "Concurrent outbox relay check",
+                    "Two relay transactions must not publish the same event concurrently.",
+                    Priority.MEDIUM,
+                    now
+            ));
+            return ticketEventRepository.save(event(ticketId, now)).getId();
+        });
+        CountDownLatch rowLocked = new CountDownLatch(1);
+        CountDownLatch releaseLock = new CountDownLatch(1);
+        var executor = Executors.newSingleThreadExecutor();
+
+        try {
+            var lockHolder = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                var locked = ticketEventRepository.lockPendingForPublication(now.plusSeconds(1), 10);
+                rowLocked.countDown();
+                await(releaseLock);
+                return locked.stream().map(TicketEvent::getId).toList();
+            }));
+
+            assertThat(rowLocked.await(10, TimeUnit.SECONDS)).isTrue();
+            var skipped = new TransactionTemplate(transactionManager).execute(
+                    status -> ticketEventRepository.lockPendingForPublication(now.plusSeconds(1), 10)
+            );
+            assertThat(skipped).isEmpty();
+
+            releaseLock.countDown();
+            assertThat(lockHolder.get(10, TimeUnit.SECONDS)).containsExactly(eventId);
+        } finally {
+            releaseLock.countDown();
+            executor.shutdownNow();
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                ticketEventRepository.deleteById(eventId);
+                ticketRepository.deleteById(ticketId);
+            });
+        }
+    }
+
+    private TicketEvent event(UUID ticketId, Instant createdAt) {
+        UUID eventId = UUID.randomUUID();
+        var payload = objectMapper.createObjectNode()
+                .put("eventId", eventId.toString())
+                .put("eventType", "ticket.created");
+        return new TicketEvent(eventId, ticketId, "ticket.created", payload, createdAt);
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting to release outbox row lock");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while holding outbox row lock", exception);
+        }
     }
 }

@@ -29,9 +29,12 @@ sequenceDiagram
 
     Operator->>UI: Create ticket
     UI->>API: POST /api/tickets
-    API->>DB: Store ticket + event record
+    API->>DB: Commit ticket + outbox event
     API-->>UI: 201 Created (prediction pending)
+    API->>DB: Relay locks pending outbox rows
     API->>Kafka: ticket.created.v1
+    Kafka-->>API: Broker acknowledgement
+    API->>DB: Mark outbox event published
     Kafka->>ML: Consume ticket event
     ML->>ML: TF-IDF + LogisticRegression
     ML->>Kafka: ticket.prediction-completed.v1
@@ -41,8 +44,10 @@ sequenceDiagram
     API-->>UI: Ticket with category, priority, confidence
 ```
 
-The event row is committed in the same PostgreSQL transaction as the ticket. Publication
-runs after commit; a durable outbox relay remains the documented reliability improvement.
+The event row is a durable outbox entry committed in the same PostgreSQL transaction as
+the ticket. A scheduled relay locks due rows with `FOR UPDATE SKIP LOCKED`, waits for Kafka
+acknowledgement, and only then records publication. Failed attempts remain durable and are
+retried with bounded exponential backoff.
 
 ## Technology choices
 
@@ -51,7 +56,7 @@ runs after commit; a durable outbox relay remains the documented reliability imp
 | React 19, TypeScript, Vite | Responsive operator queue, ticket form, details, and status changes |
 | Spring Boot 3, Java 21 | Public validated API and event orchestration |
 | Spring Data JPA, Hibernate, Flyway | Domain persistence and versioned schema migration |
-| PostgreSQL 17 | Durable ticket, event, and consumer-idempotency data |
+| PostgreSQL 17 | Durable ticket, transactional outbox, and consumer-idempotency data |
 | Redpanda | Pinned local Kafka-protocol broker with three versioned topics |
 | FastAPI, scikit-learn, pandas | HTTP model inspection plus asynchronous ticket inference |
 | Docker Compose | Health-gated local topology for all five services |
@@ -91,7 +96,8 @@ docker compose down --volumes
 
 1. Open the operator UI and create a ticket with a meaningful title and description.
 2. The row appears immediately with an `Analyzing…` state.
-3. Spring stores the ticket and event, then publishes `serviceops.ticket.created.v1`.
+3. Spring stores the ticket and outbox event atomically; the relay publishes
+   `serviceops.ticket.created.v1` and records the broker acknowledgement.
 4. The AI worker validates the event and emits `serviceops.ticket.prediction-completed.v1`.
 5. Spring validates and persists the idempotent prediction.
 6. The UI poll updates the row and detail panel with category, priority, and confidence.
@@ -164,8 +170,8 @@ invalid-message handling.
 
 The final local regression on 31 July 2026 measured:
 
-- Java: 13 tests passed, including PostgreSQL 17, Flyway, JPA, and JSONB through
-  Testcontainers.
+- Java: 19 tests passed, including PostgreSQL 17, Flyway, JPA, JSONB, outbox retry
+  state, and concurrent row locking through Testcontainers.
 - Python: Ruff passed and 11 pytest tests passed.
 - Frontend: ESLint passed, 11 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
@@ -174,7 +180,9 @@ The final local regression on 31 July 2026 measured:
 - End to end: the smoke test passed twice after separate clean-volume starts.
 - Runtime reliability: both event topics were inspected, prediction replay was idempotent,
   malformed input reached the structured invalid-event topic, PostgreSQL/backend restarts
-  preserved a ticket, and the persisted model hash survived an AI-service restart.
+  preserved a ticket, the persisted model hash survived an AI-service restart, and an
+  outbox event created during a Kafka outage was delivered after both broker recovery and
+  a backend process restart.
 - Browser: ticket creation, prediction polling, accessible detail display, and status
   update passed through the real rendered application with no browser console errors.
 - Model: 40 synthetic training rows; the fixed held-out split measured `0.60` category
@@ -183,9 +191,8 @@ The final local regression on 31 July 2026 measured:
 
 ## Current limitations
 
-- Ticket-created publication is post-commit, not yet driven by a durable outbox relay.
 - The synthetic model dataset is deliberately small and non-production.
 - Authentication, cloud deployment, analytics, RAG, observability, and Kubernetes are
   roadmap work and are not represented as complete.
-- Browser-engine automation, load measurements, and security scanning are Phase 1.3 work;
+- Browser-engine automation, load measurements, and security scanning are for next phase work;
   the current cross-service smoke test uses public HTTP APIs.

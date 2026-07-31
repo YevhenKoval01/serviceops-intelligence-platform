@@ -30,6 +30,18 @@ public class TicketEvent {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
+    @Column(name = "publish_attempts", nullable = false)
+    private int publishAttempts;
+
+    @Column(name = "next_attempt_at", nullable = false)
+    private Instant nextAttemptAt;
+
+    @Column(name = "last_publish_error", length = 1000)
+    private String lastPublishError;
+
     protected TicketEvent() {
     }
 
@@ -39,6 +51,7 @@ public class TicketEvent {
         this.eventType = eventType;
         this.eventPayload = eventPayload;
         this.createdAt = createdAt;
+        this.nextAttemptAt = createdAt;
     }
 
     public UUID getId() {
@@ -59,5 +72,44 @@ public class TicketEvent {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
+    }
+
+    public int getPublishAttempts() {
+        return publishAttempts;
+    }
+
+    public Instant getNextAttemptAt() {
+        return nextAttemptAt;
+    }
+
+    public String getLastPublishError() {
+        return lastPublishError;
+    }
+
+    public boolean isPublished() {
+        return publishedAt != null;
+    }
+
+    public void markPublished(Instant publishedAt) {
+        this.publishedAt = publishedAt;
+        this.publishAttempts += 1;
+        this.lastPublishError = null;
+    }
+
+    public void markPublicationFailed(Instant nextAttemptAt, String error) {
+        this.publishAttempts += 1;
+        this.nextAttemptAt = nextAttemptAt;
+        this.lastPublishError = truncate(error);
+    }
+
+    private String truncate(String value) {
+        if (value == null || value.isBlank()) {
+            return "Unknown publication failure";
+        }
+        return value.length() <= 1000 ? value : value.substring(0, 1000);
     }
 }

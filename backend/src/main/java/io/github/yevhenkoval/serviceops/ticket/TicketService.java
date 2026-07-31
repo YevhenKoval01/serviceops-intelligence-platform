@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.yevhenkoval.serviceops.api.CreateTicketRequest;
 import io.github.yevhenkoval.serviceops.api.SummaryResponse;
 import io.github.yevhenkoval.serviceops.event.EventEnvelope;
-import io.github.yevhenkoval.serviceops.event.EventPublisher;
 import io.github.yevhenkoval.serviceops.event.TicketEvent;
 import io.github.yevhenkoval.serviceops.event.TicketEventRepository;
 import java.time.Clock;
@@ -14,15 +13,12 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final TicketEventRepository eventRepository;
-    private final EventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -30,22 +26,19 @@ public class TicketService {
     public TicketService(
             TicketRepository ticketRepository,
             TicketEventRepository eventRepository,
-            EventPublisher eventPublisher,
             ObjectMapper objectMapper
     ) {
-        this(ticketRepository, eventRepository, eventPublisher, objectMapper, Clock.systemUTC());
+        this(ticketRepository, eventRepository, objectMapper, Clock.systemUTC());
     }
 
     TicketService(
             TicketRepository ticketRepository,
             TicketEventRepository eventRepository,
-            EventPublisher eventPublisher,
             ObjectMapper objectMapper,
             Clock clock
     ) {
         this.ticketRepository = ticketRepository;
         this.eventRepository = eventRepository;
-        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -87,7 +80,6 @@ public class TicketService {
                 objectMapper.valueToTree(event),
                 now
         ));
-        publishAfterCommit(event);
         return ticket;
     }
 
@@ -119,16 +111,4 @@ public class TicketService {
         );
     }
 
-    private void publishAfterCommit(EventEnvelope event) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    eventPublisher.publishTicketCreated(event);
-                }
-            });
-        } else {
-            eventPublisher.publishTicketCreated(event);
-        }
-    }
 }
