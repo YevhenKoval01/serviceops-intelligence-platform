@@ -1,5 +1,25 @@
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
 export type Priority = "LOW" | "MEDIUM" | "HIGH";
+export type UserRole = "VIEWER" | "OPERATOR";
+
+export interface AuthenticatedUser {
+  username: string;
+  role: UserRole;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  tokenType: "Bearer";
+  expiresIn: number;
+  expiresAt: string;
+  user: AuthenticatedUser;
+}
+
+export interface AuthSession {
+  accessToken: string;
+  expiresAt: string;
+  user: AuthenticatedUser;
+}
 
 export interface Ticket {
   id: string;

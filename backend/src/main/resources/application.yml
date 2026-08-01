@@ -46,6 +46,17 @@ spring:
         await-termination-period: 20s
 
 serviceops:
+  auth:
+    issuer: ${SERVICEOPS_AUTH_ISSUER:serviceops-local}
+    audience: ${SERVICEOPS_AUTH_AUDIENCE:serviceops-api}
+    token-ttl: ${SERVICEOPS_AUTH_TOKEN_TTL:15m}
+    jwt-secret: ${SERVICEOPS_AUTH_JWT_SECRET:local-development-signing-key-change-me-2026}
+    bootstrap:
+      enabled: ${SERVICEOPS_AUTH_BOOTSTRAP_ENABLED:true}
+      operator-username: ${SERVICEOPS_AUTH_OPERATOR_USERNAME:operator}
+      operator-password: ${SERVICEOPS_AUTH_OPERATOR_PASSWORD:operator_dev_2026}
+      viewer-username: ${SERVICEOPS_AUTH_VIEWER_USERNAME:viewer}
+      viewer-password: ${SERVICEOPS_AUTH_VIEWER_PASSWORD:viewer_dev_2026}
   topics:
     ticket-created: serviceops.ticket.created.v1
     prediction-completed: serviceops.ticket.prediction-completed.v1

@@ -9,8 +9,9 @@ not wait for inference before a ticket is stored.
 
 ```mermaid
 flowchart LR
-    Operator[Support operator] -->|HTTPS in a deployed environment| UI[React + Nginx]
-    UI -->|REST /api| API[Spring Boot]
+    Operator[Support operator] -->|Credentials| UI[React + Nginx]
+    UI -->|Login + authenticated REST| API[Spring Boot + Security]
+    API -->|BCrypt account lookup| DB
     API -->|Ticket + outbox transaction| DB[(PostgreSQL)]
     DB -->|Pending rows| Relay[Spring outbox relay]
     Relay -->|ticket.created.v1| Kafka[(Redpanda / Kafka API)]
@@ -21,9 +22,9 @@ flowchart LR
 
 | Service | Responsibility | Health signal |
 | --- | --- | --- |
-| `frontend` | Operator queue, ticket creation, details, status changes, polling | Nginx `/health` |
-| `backend` | Validation, REST API, persistence, event production and prediction consumption | Actuator verifies application, PostgreSQL, and Kafka |
-| `ai-service` | Model loading, synchronous `/predict`, Kafka inference worker | `/health` requires a model and a broker-connected worker |
+| `frontend` | Sign-in, role-aware operator queue, ticket creation, details, status changes, polling | Nginx `/health` |
+| `backend` | Local identity, JWT issuance/validation, role enforcement, REST API, persistence, event production and prediction consumption | Actuator verifies application, PostgreSQL, and Kafka |
+| `ai-service` | Shared JWT validation for model HTTP endpoints, model loading, synchronous `/predict`, Kafka inference worker | `/health` requires a model and a broker-connected worker |
 | `postgres` | Tickets, transactional event records, processed-event keys | `pg_isready` |
 | `kafka` | Three versioned event topics | Redpanda cluster health |
 
@@ -83,13 +84,31 @@ those duplicates while closing any pre-upgrade publication gap.
 
 ## Data ownership
 
-Spring Boot is the only writer to application tables. The AI service does not connect to
-PostgreSQL. The model artifact is stored in the Compose `ai-model` volume and retrained
-only when a compatible `baseline-1` artifact is absent.
+Spring Boot is the only writer to application tables, including `app_users`. Passwords are
+stored only as BCrypt hashes. The AI service does not connect to PostgreSQL. The model
+artifact is stored in the Compose `ai-model` volume and retrained only when a compatible
+`baseline-1` artifact is absent.
 
 ## Security boundary
 
-This local baseline intentionally has no authentication or authorization. Development
-credentials in Compose are non-secret defaults, and `.env` is ignored. Before deployment,
-add identity, authorization, secret management, TLS, origin restrictions, dependency
-scanning, and an externalized broker/database configuration.
+The React client exchanges a username and password only with Spring Boot. Spring Security
+verifies a persisted BCrypt hash and returns a 15-minute HS256 JWT containing the subject,
+issuer, audience, expiry, and role. The token lives in browser `sessionStorage`, is attached
+to API requests, and is cleared on sign-out, expiry, or a `401` response. Spring and FastAPI
+independently verify the same signature and claims.
+
+Role policy is deliberately small:
+
+| Capability | `VIEWER` | `OPERATOR` |
+| --- | --- | --- |
+| Read tickets and summary | Yes | Yes |
+| Read model metadata | Yes | Yes |
+| Create tickets and change status | No | Yes |
+| Call direct `/predict` diagnostic | No | Yes |
+
+Health checks and OpenAPI documents are public. Kafka consumers remain internal service
+workloads and do not accept end-user credentials. Compose includes known non-secret local
+accounts and a development signing key so a clean clone is reproducible; every value is
+environment-configurable. A deployed environment still requires TLS, external identity or
+controlled account provisioning, managed keys/secrets, token refresh/revocation policy,
+strict origin policy, dependency scanning, and external broker/database credentials.

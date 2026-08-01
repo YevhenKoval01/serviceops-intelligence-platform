@@ -8,11 +8,11 @@ Compose smoke test proves the real cross-service flow.
 
 | Layer | Coverage |
 | --- | --- |
-| Java unit and web slice | Request normalization and validation, RFC 7807 errors, transactional outbox state and retries, acknowledged Kafka delivery, prediction contract validation and idempotency, structured dead-letter records |
-| Java repository integration | Real PostgreSQL 17 container, Flyway schema validation, JPA ticket persistence, JSONB outbox persistence, due-event locking, query ordering |
-| Python unit/API | Dataset schema, deterministic training, response constraints, trimmed input validation, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
-| Frontend component/API | Form validation and failures, queue and empty states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
-| Compose smoke | Five health checks, real frontend asset, invalid API request, ticket persistence, both Kafka topics, ML result, queue listing, status update, summary totals |
+| Java unit and web slice | Login exchange, anonymous `401`, viewer `403`, request normalization and validation, RFC 7807 errors, transactional outbox state and retries, acknowledged Kafka delivery, prediction contract validation and idempotency, structured dead-letter records |
+| Java repository integration | Real PostgreSQL 17 container, Flyway schema validation through V3, BCrypt account record, JPA ticket persistence, JSONB outbox persistence, due-event locking, query ordering |
+| Python unit/API | Shared JWT signature/claim validation, role denial, dataset schema, deterministic training, response constraints, trimmed input validation, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
+| Frontend component/API | Sign-in/session handling, bearer headers, expiry cleanup, viewer UI, form validation and failures, queue and empty states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
+| Compose smoke | Five health checks, real sign-in, anonymous rejection, viewer/operator policy, shared Spring/FastAPI token, frontend asset, invalid API request, ticket persistence, both Kafka topics, ML result, queue listing, status update, summary totals |
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
 
 ## Local commands

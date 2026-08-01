@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
 from serviceops_ai.kafka_worker import KafkaPredictionWorker
 from serviceops_ai.model import CATEGORIES, ModelBundle, load_or_train_model
@@ -14,6 +15,7 @@ from serviceops_ai.schemas import (
     PredictionRequest,
     PredictionResponse,
 )
+from serviceops_ai.security import AuthenticatedUser, operator, viewer_or_operator
 
 AI_SERVICE_ROOT = Path(__file__).resolve().parents[2]
 DATASET_PATH = Path(
@@ -58,7 +60,10 @@ def require_model() -> ModelBundle:
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(request: PredictionRequest) -> PredictionResponse:
+def predict(
+    request: PredictionRequest,
+    _: Annotated[AuthenticatedUser, Depends(operator)],
+) -> PredictionResponse:
     return require_model().predict(request.title, request.description)
 
 
@@ -76,7 +81,9 @@ def health() -> HealthResponse:
 
 
 @app.get("/model-info", response_model=ModelInfoResponse)
-def model_info() -> ModelInfoResponse:
+def model_info(
+    _: Annotated[AuthenticatedUser, Depends(viewer_or_operator)],
+) -> ModelInfoResponse:
     current = require_model()
     return ModelInfoResponse(
         modelVersion=current.model_version,

@@ -1,4 +1,11 @@
-import type { CreateTicketInput, Ticket, TicketStatus } from "./types";
+import { expireSession, loadSession } from "./auth";
+import type {
+  AuthenticatedUser,
+  CreateTicketInput,
+  LoginResponse,
+  Ticket,
+  TicketStatus,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -9,15 +16,24 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  options?: RequestInit,
+  authenticated = true,
+): Promise<T> {
+  const session = authenticated ? loadSession() : null;
   const response = await fetch(path, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
       ...options?.headers,
     },
   });
   if (!response.ok) {
+    if (authenticated && response.status === 401) {
+      expireSession();
+    }
     let message = `Request failed with status ${response.status}`;
     try {
       const problem = (await response.json()) as { detail?: string; title?: string };
@@ -28,6 +44,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new ApiError(message, response.status);
   }
   return response.json() as Promise<T>;
+}
+
+export function login(username: string, password: string): Promise<LoginResponse> {
+  return request<LoginResponse>(
+    "/api/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    },
+    false,
+  );
+}
+
+export function getCurrentUser(): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>("/api/auth/me");
 }
 
 export function listTickets(): Promise<Ticket[]> {

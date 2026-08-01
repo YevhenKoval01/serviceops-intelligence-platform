@@ -3,6 +3,9 @@ package io.github.yevhenkoval.serviceops.ticket;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.yevhenkoval.serviceops.auth.UserAccount;
+import io.github.yevhenkoval.serviceops.auth.UserAccountRepository;
+import io.github.yevhenkoval.serviceops.auth.UserRole;
 import io.github.yevhenkoval.serviceops.event.TicketEvent;
 import io.github.yevhenkoval.serviceops.event.TicketEventRepository;
 import java.time.Instant;
@@ -45,9 +48,33 @@ class TicketRepositoryTest {
     private TicketEventRepository ticketEventRepository;
 
     @Autowired
+    private UserAccountRepository userAccountRepository;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void flywaySchemaPersistsAuthenticationAccounts() {
+        Instant now = Instant.parse("2026-08-01T10:00:00Z");
+        UserAccount account = userAccountRepository.saveAndFlush(new UserAccount(
+                UUID.randomUUID(),
+                "Viewer",
+                "$2a$10$nonSensitiveTestPasswordHashValue000000000000000000000000",
+                UserRole.VIEWER,
+                now
+        ));
+
+        assertThat(userAccountRepository.findByUsernameIgnoreCase("VIEWER"))
+                .contains(account)
+                .get()
+                .satisfies(stored -> {
+                    assertThat(stored.getUsername()).isEqualTo("viewer");
+                    assertThat(stored.getRole()).isEqualTo(UserRole.VIEWER);
+                    assertThat(stored.isEnabled()).isTrue();
+                });
+    }
 
     @Test
     void flywaySchemaPersistsTicketAndJsonEventTogether() {

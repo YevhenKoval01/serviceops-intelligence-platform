@@ -9,6 +9,7 @@ interface TicketDetailProps {
   onUpdated: (ticket: Ticket) => void;
   onClose: () => void;
   predictionDelayed?: boolean;
+  canUpdate?: boolean;
 }
 
 export function TicketDetail({
@@ -16,6 +17,7 @@ export function TicketDetail({
   onUpdated,
   onClose,
   predictionDelayed = false,
+  canUpdate = true,
 }: TicketDetailProps) {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,19 +160,23 @@ export function TicketDetail({
           </div>
         </div>
 
-        <div className="status-controls">
-          <label htmlFor="ticket-status">Update status</label>
-          <select
-            id="ticket-status"
-            value={ticket.status}
-            disabled={updating}
-            onChange={(event) => void changeStatus(event.target.value as TicketStatus)}
-          >
-            <option value="OPEN">Open</option>
-            <option value="IN_PROGRESS">In progress</option>
-            <option value="RESOLVED">Resolved</option>
-          </select>
-        </div>
+        {canUpdate ? (
+          <div className="status-controls">
+            <label htmlFor="ticket-status">Update status</label>
+            <select
+              id="ticket-status"
+              value={ticket.status}
+              disabled={updating}
+              onChange={(event) => void changeStatus(event.target.value as TicketStatus)}
+            >
+              <option value="OPEN">Open</option>
+              <option value="IN_PROGRESS">In progress</option>
+              <option value="RESOLVED">Resolved</option>
+            </select>
+          </div>
+        ) : (
+          <p className="role-note">Viewer access is read-only. An operator can change status.</p>
+        )}
         {statusMessage && (
           <div className="inline-success" role="status">
             {statusMessage}

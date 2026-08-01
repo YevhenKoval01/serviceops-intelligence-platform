@@ -47,3 +47,17 @@ test("closes the modal with Escape", async () => {
 
   expect(onClose).toHaveBeenCalledOnce();
 });
+
+test("renders ticket details without mutation controls for a viewer", () => {
+  render(
+    <TicketDetail
+      ticket={ticket}
+      onUpdated={vi.fn()}
+      onClose={vi.fn()}
+      canUpdate={false}
+    />,
+  );
+
+  expect(screen.getByText(/Viewer access is read-only/)).toBeInTheDocument();
+  expect(screen.queryByLabelText("Update status")).not.toBeInTheDocument();
+});

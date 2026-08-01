@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -17,6 +18,17 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(BadCredentialsException.class)
+    ResponseEntity<ProblemDetail> invalidCredentials(HttpServletRequest request) {
+        return response(
+                HttpStatus.UNAUTHORIZED,
+                "Sign-in failed",
+                "The username or password is incorrect",
+                "invalid-credentials",
+                request
+        );
+    }
 
     @ExceptionHandler(TicketNotFoundException.class)
     ResponseEntity<ProblemDetail> notFound(TicketNotFoundException exception, HttpServletRequest request) {

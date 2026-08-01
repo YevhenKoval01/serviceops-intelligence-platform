@@ -4,11 +4,34 @@ The commands below assume the default Compose ports. Spring API documentation is
 <http://localhost:8080/swagger-ui.html>; FastAPI documentation is at
 <http://localhost:8000/docs>.
 
+## Sign in
+
+Exchange a local account for a 15-minute bearer token:
+
+```bash
+curl --fail-with-body \
+  --request POST http://localhost:8080/api/auth/login \
+  --header "Content-Type: application/json" \
+  --data '{"username":"operator","password":"operator_dev_2026"}'
+```
+
+The response includes `accessToken`, `tokenType`, `expiresIn`, `expiresAt`, and the
+authenticated user. Assign the returned token before running the protected examples:
+
+```bash
+TOKEN="paste-accessToken-here"
+```
+
+The known credentials are for isolated local development only. `viewer` /
+`viewer_dev_2026` can call read endpoints but receives `403` for ticket mutations and
+direct prediction.
+
 ## Create a ticket
 
 ```bash
 curl --fail-with-body \
   --request POST http://localhost:8080/api/tickets \
+  --header "Authorization: Bearer $TOKEN" \
   --header "Content-Type: application/json" \
   --data '{
     "title": "Production API unavailable",
@@ -40,13 +63,15 @@ is asynchronous:
 ## Read and update tickets
 
 ```bash
-curl --fail-with-body http://localhost:8080/api/tickets
-curl --fail-with-body http://localhost:8080/api/tickets/23dc7d80-d74f-4d56-8c8c-caf97dc9ed23
+curl --fail-with-body --header "Authorization: Bearer $TOKEN" http://localhost:8080/api/tickets
+curl --fail-with-body --header "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/tickets/23dc7d80-d74f-4d56-8c8c-caf97dc9ed23
 curl --fail-with-body \
   --request PATCH http://localhost:8080/api/tickets/23dc7d80-d74f-4d56-8c8c-caf97dc9ed23/status \
+  --header "Authorization: Bearer $TOKEN" \
   --header "Content-Type: application/json" \
   --data '{"status":"IN_PROGRESS"}'
-curl --fail-with-body http://localhost:8080/api/summary
+curl --fail-with-body --header "Authorization: Bearer $TOKEN" http://localhost:8080/api/summary
 ```
 
 Summary responses contain `total`, `open`, `inProgress`, and `resolved` counts.
@@ -77,6 +102,7 @@ model independently:
 ```bash
 curl --fail-with-body \
   --request POST http://localhost:8000/predict \
+  --header "Authorization: Bearer $TOKEN" \
   --header "Content-Type: application/json" \
   --data '{
     "title": "Production API unavailable",
@@ -106,3 +132,6 @@ curl --fail-with-body http://localhost:3000/health
 
 Backend health includes database and Kafka connectivity. AI health returns `503` unless
 the model is loaded and its Kafka worker has connected to broker metadata.
+
+Health and OpenAPI documents are intentionally public. `/api/**`, `/predict`, and
+`/model-info` enforce authentication as described above.

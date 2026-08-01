@@ -13,6 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.yevhenkoval.serviceops.ticket.Ticket;
 import io.github.yevhenkoval.serviceops.ticket.TicketNotFoundException;
 import io.github.yevhenkoval.serviceops.ticket.TicketService;
+import io.github.yevhenkoval.serviceops.auth.DatabaseUserDetailsService;
+import io.github.yevhenkoval.serviceops.config.SecurityConfiguration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -20,10 +22,15 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithAnonymousUser;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(TicketController.class)
+@Import(SecurityConfiguration.class)
+@WithMockUser(roles = "OPERATOR")
 class TicketControllerTest {
 
     @Autowired
@@ -31,6 +38,34 @@ class TicketControllerTest {
 
     @MockitoBean
     private TicketService ticketService;
+
+    @MockitoBean
+    private DatabaseUserDetailsService userDetailsService;
+
+    @Test
+    @WithAnonymousUser
+    void requiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/tickets"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type")
+                        .value("https://serviceops.local/problems/authentication-required"));
+    }
+
+    @Test
+    @WithMockUser(roles = "VIEWER")
+    void preventsViewerFromCreatingTickets() throws Exception {
+        mockMvc.perform(post("/api/tickets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Valid request",
+                                  "description": "A sufficiently detailed support request."
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type")
+                        .value("https://serviceops.local/problems/access-denied"));
+    }
 
     @Test
     void rejectsInvalidTicket() throws Exception {

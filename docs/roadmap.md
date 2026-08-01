@@ -6,7 +6,7 @@ automated quality checks. The phases below begin only after the baseline remains
 
 ## Phase 1.1: business workflow and analytics
 
-- Authentication and role-based access.
+- External identity federation, managed account lifecycle, and production token/key policy.
 - SLA policies, deadlines, escalation, ownership, and audit views.
 - Reproducible generation of at least 100,000 ticket lifecycle events.
 - Analytical PostgreSQL schema with dbt transformations and tests.
@@ -36,6 +36,7 @@ automated quality checks. The phases below begin only after the baseline remains
 - Terraform infrastructure and controlled-cost demo lifecycle.
 - OpenTelemetry instrumentation and production monitoring.
 
-These are roadmap items, not implemented integrations. The repository must not be
-described as authenticated, cloud-deployed, observable, or production-ready until the
-corresponding work is complete and verified.
+Authentication and local role-based access are implemented and verified. The remaining
+items are roadmap work, not placeholder integrations. The repository must not be described
+as cloud-deployed, observable, or production-ready until the corresponding work is complete
+and verified.

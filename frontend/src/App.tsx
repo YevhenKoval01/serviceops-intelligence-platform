@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { AUTH_EXPIRED_EVENT, clearSession, expireSession, loadSession } from "./auth";
 import { getTicket, listTickets } from "./api";
 import { CreateTicketForm } from "./components/CreateTicketForm";
+import { LoginForm } from "./components/LoginForm";
 import { TicketDetail } from "./components/TicketDetail";
 import { TicketTable } from "./components/TicketTable";
-import type { Ticket } from "./types";
+import type { AuthSession, Ticket } from "./types";
 
 const POLL_ATTEMPTS = 30;
 const POLL_INTERVAL_MS = 1000;
 
 export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(() => loadSession());
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,8 +50,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadTickets();
-  }, [loadTickets]);
+    if (session) {
+      void loadTickets();
+    }
+  }, [loadTickets, session]);
+
+  useEffect(() => {
+    function handleExpiredSession() {
+      setSession(null);
+      setTickets([]);
+      setSelected(null);
+      setError(null);
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    const remaining = Date.parse(session.expiresAt) - Date.now();
+    const delay = Math.max(0, Math.min(remaining, 2_147_000_000));
+    const timeout = window.setTimeout(expireSession, delay);
+    return () => window.clearTimeout(timeout);
+  }, [session]);
 
   function mergeTicket(updated: Ticket) {
     setTickets((current) => {
@@ -96,6 +122,28 @@ export default function App() {
 
   const closeDetail = useCallback(() => setSelected(null), []);
 
+  function handleAuthenticated(authSession: AuthSession) {
+    setTickets([]);
+    setSelected(null);
+    setLoading(true);
+    setError(null);
+    setSession(authSession);
+  }
+
+  function handleSignOut() {
+    clearSession();
+    setSession(null);
+    setTickets([]);
+    setSelected(null);
+    setAnnouncement("Signed out.");
+  }
+
+  if (!session) {
+    return <LoginForm onAuthenticated={handleAuthenticated} />;
+  }
+
+  const canUpdate = session.user.role === "OPERATOR";
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -109,9 +157,18 @@ export default function App() {
             <span>Operator workspace</span>
           </div>
         </div>
-        <div className="system-state">
-          <span className="state-dot" aria-hidden="true" />
-          Event pipeline active
+        <div className="topbar-actions">
+          <div className="system-state">
+            <span className="state-dot" aria-hidden="true" />
+            Event pipeline active
+          </div>
+          <div className="user-chip">
+            <span>{session.user.username}</span>
+            <strong>{session.user.role === "OPERATOR" ? "Operator" : "Viewer"}</strong>
+          </div>
+          <button className="sign-out-button" type="button" onClick={handleSignOut}>
+            Sign out
+          </button>
         </div>
       </header>
 
@@ -134,7 +191,14 @@ export default function App() {
           </div>
         </section>
 
-        <CreateTicketForm onCreated={handleCreated} />
+        {canUpdate ? (
+          <CreateTicketForm onCreated={handleCreated} />
+        ) : (
+          <section className="read-only-panel" aria-label="Read-only access">
+            <strong>Viewer access</strong>
+            <span>You can inspect the queue and ticket details. Mutating actions require Operator.</span>
+          </section>
+        )}
 
         <section className="queue-panel" aria-labelledby="ticket-queue-heading">
           <div className="section-heading">
@@ -186,6 +250,7 @@ export default function App() {
           onUpdated={mergeTicket}
           onClose={closeDetail}
           predictionDelayed={delayedPredictions.has(selected.id)}
+          canUpdate={canUpdate}
         />
       )}
     </div>
