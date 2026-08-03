@@ -5,9 +5,10 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
 from confluent_kafka import Consumer, KafkaError, Producer
@@ -21,6 +22,57 @@ PREDICTION_TOPIC = "serviceops.ticket.prediction-completed.v1"
 INVALID_TOPIC = "serviceops.ticket.invalid.v1"
 MAX_PROCESS_ATTEMPTS = 3
 PRODUCE_TIMEOUT_SECONDS = 10
+
+
+def kafka_client_config(
+    bootstrap_servers: str,
+    role: Literal["consumer", "producer"],
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    current_environment = os.environ if environment is None else environment
+    config: dict[str, Any] = {"bootstrap.servers": bootstrap_servers}
+    profile = current_environment.get("KAFKA_PROFILE", "default").strip().lower()
+    if profile not in {"default", "azure-event-hubs"}:
+        raise ValueError(f"Unsupported KAFKA_PROFILE: {profile}")
+
+    security_protocol = current_environment.get("KAFKA_SECURITY_PROTOCOL")
+    sasl_mechanism = current_environment.get("KAFKA_SASL_MECHANISM")
+    sasl_username = current_environment.get("KAFKA_SASL_USERNAME")
+    sasl_password = current_environment.get("KAFKA_SASL_PASSWORD")
+    sasl_values = (sasl_mechanism, sasl_username, sasl_password)
+    if any(sasl_values) and not all(sasl_values):
+        raise ValueError(
+            "KAFKA_SASL_MECHANISM, KAFKA_SASL_USERNAME, and KAFKA_SASL_PASSWORD "
+            "must be configured together"
+        )
+    if security_protocol:
+        config["security.protocol"] = security_protocol
+    if all(sasl_values):
+        config.update(
+            {
+                "sasl.mechanism": sasl_mechanism,
+                "sasl.username": sasl_username,
+                "sasl.password": sasl_password,
+            }
+        )
+
+    if profile == "azure-event-hubs":
+        if security_protocol != "SASL_SSL" or sasl_mechanism != "PLAIN":
+            raise ValueError(
+                "The azure-event-hubs profile requires SASL_SSL with the PLAIN mechanism"
+            )
+        if not sasl_username or not sasl_password:
+            raise ValueError("The azure-event-hubs profile requires SASL credentials")
+        config.update(
+            {
+                "socket.keepalive.enable": True,
+                "metadata.max.age.ms": 180000,
+            }
+        )
+        if role == "producer":
+            config["request.timeout.ms"] = 60000
+
+    return config
 
 
 def contract_path() -> Path:
@@ -119,11 +171,12 @@ def publish_with_retry(
 class KafkaPredictionWorker:
     def __init__(self, model: ModelBundle, bootstrap_servers: str) -> None:
         self._model = model
-        self._bootstrap_servers = bootstrap_servers
         self._stop = threading.Event()
         self._ready = threading.Event()
         self._thread: threading.Thread | None = None
         self._validator = load_created_validator()
+        self._consumer_config = kafka_client_config(bootstrap_servers, "consumer")
+        self._producer_config = kafka_client_config(bootstrap_servers, "producer")
 
     @property
     def is_running(self) -> bool:
@@ -153,7 +206,7 @@ class KafkaPredictionWorker:
     def _run(self) -> None:
         consumer = Consumer(
             {
-                "bootstrap.servers": self._bootstrap_servers,
+                **self._consumer_config,
                 "group.id": "serviceops-ai-v1",
                 "auto.offset.reset": "earliest",
                 "enable.auto.commit": False,
@@ -161,7 +214,7 @@ class KafkaPredictionWorker:
         )
         producer = Producer(
             {
-                "bootstrap.servers": self._bootstrap_servers,
+                **self._producer_config,
                 "enable.idempotence": True,
             }
         )

@@ -1,0 +1,226 @@
+name: Azure deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Deploy or destroy the Azure workload
+        required: true
+        type: choice
+        options:
+          - deploy
+          - destroy
+      environment:
+        description: Short environment name used by Terraform
+        required: true
+        default: demo
+        type: string
+      location:
+        description: Azure region
+        required: true
+        default: westeurope
+        type: string
+      image_tag:
+        description: Optional immutable image tag (defaults to this commit SHA)
+        required: false
+        type: string
+      confirm_destroy:
+        description: For destroy, enter the environment name exactly
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: azure-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }} ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_ROOT: infra/azure
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_PRINCIPAL_OBJECT_ID }}
+      STATE_RESOURCE_GROUP: ${{ vars.AZURE_STATE_RESOURCE_GROUP }}
+      STATE_STORAGE_ACCOUNT: ${{ vars.AZURE_STATE_STORAGE_ACCOUNT }}
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_location: ${{ inputs.location }}
+      TF_VAR_image_tag: ${{ inputs.image_tag || github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Azure deployment is restricted to the main branch." >&2
+            exit 1
+          fi
+          for name in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID AZURE_PRINCIPAL_OBJECT_ID STATE_RESOURCE_GROUP STATE_STORAGE_ACCOUNT; do
+            if [[ -z "${!name}" ]]; then
+              echo "Required GitHub secret or variable $name is not configured." >&2
+              exit 1
+            fi
+          done
+          if [[ "${{ inputs.action }}" == "destroy" && "${{ inputs.confirm_destroy }}" != "${{ inputs.environment }}" ]]; then
+            echo "Destroy confirmation must exactly match the environment name." >&2
+            exit 1
+          fi
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Prepare encrypted remote state
+        shell: bash
+        run: |
+          set -euo pipefail
+          az group create \
+            --name "$STATE_RESOURCE_GROUP" \
+            --location "${{ inputs.location }}" \
+            --tags application=serviceops-intelligence-platform purpose=terraform-state \
+            --output none
+          az storage account create \
+            --name "$STATE_STORAGE_ACCOUNT" \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --location "${{ inputs.location }}" \
+            --sku Standard_LRS \
+            --kind StorageV2 \
+            --allow-blob-public-access false \
+            --min-tls-version TLS1_2 \
+            --output none
+
+          state_scope="$(az storage account show \
+            --name "$STATE_STORAGE_ACCOUNT" \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --query id --output tsv)"
+          assignment_count="$(az role assignment list \
+            --scope "$state_scope" \
+            --query "[?principalId=='$AZURE_PRINCIPAL_OBJECT_ID' && roleDefinitionName=='Storage Blob Data Contributor'] | length(@)" \
+            --output tsv)"
+          if [[ "$assignment_count" == "0" ]]; then
+            az role assignment create \
+              --assignee-object-id "$AZURE_PRINCIPAL_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Storage Blob Data Contributor" \
+              --scope "$state_scope" \
+              --output none
+          fi
+
+          for attempt in {1..18}; do
+            if az storage container create \
+              --name tfstate \
+              --account-name "$STATE_STORAGE_ACCOUNT" \
+              --auth-mode login \
+              --output none 2>/dev/null; then
+              exit 0
+            fi
+            echo "Waiting for state storage role propagation ($attempt/18)..."
+            sleep 10
+          done
+          echo "Could not access the Terraform state container after role propagation." >&2
+          exit 1
+
+      - name: Initialize and validate Terraform
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir="$TF_ROOT" fmt -check -recursive
+          terraform -chdir="$TF_ROOT" init -reconfigure \
+            -backend-config="resource_group_name=$STATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$STATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=serviceops-${{ inputs.environment }}.tfstate" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=$ARM_CLIENT_ID" \
+            -backend-config="tenant_id=$ARM_TENANT_ID" \
+            -backend-config="subscription_id=$ARM_SUBSCRIPTION_ID"
+          terraform -chdir="$TF_ROOT" validate
+
+      - name: Bootstrap container registry
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! terraform -chdir="$TF_ROOT" state show azurerm_container_registry.main >/dev/null 2>&1; then
+            terraform -chdir="$TF_ROOT" apply -auto-approve \
+              -target=azurerm_container_registry.main
+          fi
+
+      - name: Build immutable application images in ACR
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="$(terraform -chdir="$TF_ROOT" output -raw container_registry_name)"
+          az acr build --registry "$registry" --image "serviceops-backend:$TF_VAR_image_tag" --file backend/Dockerfile backend
+          az acr build --registry "$registry" --image "serviceops-ai:$TF_VAR_image_tag" --file ai-service/Dockerfile .
+          az acr build --registry "$registry" --image "serviceops-frontend:$TF_VAR_image_tag" --file frontend/Dockerfile frontend
+
+      - name: Plan deployment
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: terraform -chdir="$TF_ROOT" plan -out=deployment.tfplan
+
+      - name: Apply deployment
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: terraform -chdir="$TF_ROOT" apply -auto-approve deployment.tfplan
+
+      - name: Run cloud smoke test
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          frontend_url="$(terraform -chdir="$TF_ROOT" output -raw frontend_url)"
+          operator_username="$(terraform -chdir="$TF_ROOT" output -raw operator_username)"
+          operator_password="$(terraform -chdir="$TF_ROOT" output -raw operator_password)"
+          echo "::add-mask::$operator_password"
+          SERVICEOPS_BASE_URL="$frontend_url" \
+          SERVICEOPS_OPERATOR_USERNAME="$operator_username" \
+          SERVICEOPS_OPERATOR_PASSWORD="$operator_password" \
+            python scripts/cloud_smoke_test.py
+          {
+            echo "### Azure deployment"
+            echo "Operator UI: $frontend_url"
+            echo "Image tag: $TF_VAR_image_tag"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Plan destruction
+        if: inputs.action == 'destroy'
+        shell: bash
+        run: terraform -chdir="$TF_ROOT" plan -destroy -out=destroy.tfplan
+
+      - name: Destroy workload resources
+        if: inputs.action == 'destroy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir="$TF_ROOT" apply -auto-approve destroy.tfplan
+          {
+            echo "### Azure destruction"
+            echo "Destroyed ServiceOps environment: $TF_VAR_environment"
+            echo "The small shared Terraform state backend was retained."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -66,7 +66,8 @@ retried with bounded exponential backoff.
 | Redpanda | Pinned local Kafka-protocol broker with three versioned topics |
 | FastAPI, scikit-learn, pandas | HTTP model inspection plus asynchronous ticket inference |
 | Docker Compose | Health-gated local topology for all five services |
-| GitHub Actions | Independent Java, Python, frontend, and container image quality jobs |
+| Azure Container Apps, PostgreSQL, Event Hubs, ACR | Terraform-managed cloud runtime with private data and public frontend ingress |
+| GitHub Actions | Independent Java, Python, frontend, Terraform, container image, and manual Azure deployment jobs |
 
 ## Run locally
 
@@ -107,6 +108,24 @@ Delete all local application data only when explicitly desired:
 docker compose down --volumes
 ```
 
+## Deploy to Azure
+
+The manual `Azure deployment` GitHub Actions workflow provisions a controlled-cost demo
+topology with Terraform. It builds immutable images in ACR, deploys the frontend, backend,
+and AI worker to a VNet-integrated Container Apps environment, uses private PostgreSQL
+Flexible Server storage, and replaces local Redpanda with three Event Hubs exposed through
+the Kafka-compatible TLS endpoint. Only the frontend has public ingress.
+
+The workflow uses GitHub-to-Azure OIDC, encrypted remote state, generated application
+credentials, and a pull-only managed identity for ACR. A normal push never provisions or
+changes cloud resources. See the [Azure deployment guide](infra/azure/README.md) for the
+required repository secrets, variables, permissions, deploy sequence, credential handling,
+and explicit destroy procedure.
+
+This repository contains and validates the deployment capability; it does not claim an
+always-on public environment. Running the workflow creates billable Azure resources until
+the matching destroy action completes.
+
 ## Demonstration
 
 1. Open the UI and sign in as the local operator.
@@ -143,7 +162,7 @@ AI service (Python 3.12+):
 cd ai-service
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"  # Windows
-.venv/Scripts/python -m ruff check src tests
+.venv/Scripts/python -m ruff check src tests ../scripts/cloud_smoke_test.py
 .venv/Scripts/python -m pytest
 ```
 
@@ -157,6 +176,15 @@ npm ci
 npm run lint
 npm test
 npm run build
+```
+
+Azure infrastructure (Terraform 1.15.8):
+
+```bash
+terraform -chdir=infra/azure fmt -check -recursive
+terraform -chdir=infra/azure init -backend=false
+terraform -chdir=infra/azure validate
+terraform -chdir=infra/azure test
 ```
 
 ## Public API
@@ -188,15 +216,17 @@ invalid-message handling.
 - [API requests, responses, and error examples](docs/api-examples.md)
 - [Test strategy and acceptance procedure](docs/test-strategy.md)
 - [Phased roadmap](docs/roadmap.md)
+- [Azure deployment and teardown](infra/azure/README.md)
 
 ## Verified baseline
 
-The latest local regression on 1 August 2026 measured:
+The latest local regression on 3 August 2026 measured:
 
-- Java: 27 tests passed, including Spring Security role enforcement, PostgreSQL 17,
+- Java: 29 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V3, JPA, JSONB, outbox retry state, and concurrent row locking through
   Testcontainers.
-- Python: Ruff passed and 13 pytest tests passed, including shared JWT validation.
+- Python: Ruff passed and 16 pytest tests passed, including shared JWT validation and
+  Event Hubs Kafka profile validation.
 - Frontend: ESLint passed, 17 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
 - Compose: configuration validation passed; all three images built; PostgreSQL, Redpanda,
@@ -212,6 +242,10 @@ The latest local regression on 1 August 2026 measured:
   a backend process restart.
 - Browser: ticket creation, prediction polling, accessible detail display, and status
   update passed through the real rendered application with no browser console errors.
+- Azure deployment: Terraform 1.15.8 formatting and AzureRM 4.81.0 schema validation
+  passed; the credential-free mocked plan test verified the network/ingress/identity
+  boundaries; actionlint passed for both workflows; and the cloud-style smoke script passed
+  through the public Nginx boundary. No paid Azure resources were created in this local run.
 - Model: 40 synthetic training rows; the fixed held-out split measured `0.60` category
   accuracy and `0.50` priority accuracy. These small-sample scores are reproducibility
   evidence, not production performance claims.
@@ -219,10 +253,14 @@ The latest local regression on 1 August 2026 measured:
 ## Current limitations
 
 - The synthetic model dataset is deliberately small and non-production.
-- Cloud deployment, analytics, RAG, observability, and Kubernetes are roadmap work and are
-  not represented as complete.
+- Analytics, RAG, observability, and Kubernetes remain roadmap work and are not represented
+  as complete.
+- Azure deployment is implemented as validated Terraform and a manual deploy/destroy
+  workflow, but no always-on hosted environment or production availability claim is made.
+  Event Hubs and ACR use authenticated public endpoints, while PostgreSQL is private.
 - Authentication uses local bootstrap accounts and short-lived access tokens. External
-  identity federation, self-service account lifecycle, refresh/revocation flows, TLS, and
-  managed secret storage remain deployment work.
+  identity federation, self-service account lifecycle, refresh/revocation flows, and a
+  managed secret store remain roadmap work. Local Compose still uses development HTTP;
+  Azure application ingress and managed service connections use TLS.
 - Browser-engine automation, load measurements, and security scanning are for next phase work;
   the current cross-service smoke test uses authenticated HTTP APIs.

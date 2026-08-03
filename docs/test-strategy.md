@@ -14,6 +14,8 @@ Compose smoke test proves the real cross-service flow.
 | Frontend component/API | Sign-in/session handling, bearer headers, expiry cleanup, viewer UI, form validation and failures, queue and empty states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
 | Compose smoke | Five health checks, real sign-in, anonymous rejection, viewer/operator policy, shared Spring/FastAPI token, frontend asset, invalid API request, ticket persistence, both Kafka topics, ML result, queue listing, status update, summary totals |
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
+| Terraform | Formatting, AzureRM schema validation, and a credential-free mocked plan asserting private PostgreSQL, ingress boundaries, managed ACR access, all event hubs, and a continuously running prediction worker |
+| Azure deployment smoke | Manual workflow OIDC login, ACR remote builds, Terraform plan/apply, frontend health, authenticated ticket creation, Event Hubs round trip, and eventual ML classification |
 
 ## Local commands
 
@@ -31,7 +33,7 @@ AI service:
 ```bash
 cd ai-service
 python -m pip install -e ".[dev]"
-python -m ruff check src tests
+python -m ruff check src tests ../scripts/cloud_smoke_test.py
 python -m pytest
 ```
 
@@ -54,6 +56,19 @@ python scripts/smoke_test.py
 docker compose down --volumes
 ```
 
+Azure Terraform (no credentials or resources required):
+
+```bash
+terraform -chdir=infra/azure fmt -check -recursive
+terraform -chdir=infra/azure init -backend=false
+terraform -chdir=infra/azure validate
+terraform -chdir=infra/azure test
+```
+
+The manual Azure workflow performs the credentialed plan/apply and runs
+`scripts/cloud_smoke_test.py`. It is intentionally excluded from pull-request CI because it
+creates billable resources and requires an explicitly authorized Azure subscription.
+
 ## Baseline acceptance
 
 Before the final baseline commit:
@@ -70,11 +85,12 @@ Before the final baseline commit:
 9. Tear down with volumes and repeat a second time from clean application data.
 10. Inspect every changed and untracked path for secrets and generated artifacts.
 
-GitHub Actions mirrors the language commands and builds every Compose image after all
-quality jobs pass. Pull requests require no repository secrets.
+GitHub Actions mirrors the language and Terraform commands and builds every Compose image
+after all quality jobs pass. Pull requests require no repository secrets. Azure deploy and
+destroy are separate manual actions guarded by OIDC and an exact destroy confirmation.
 
 ## Intentional exclusions
 
 The baseline does not claim browser-engine end-to-end automation, load metrics, security
-scanning, production model accuracy, or cloud reliability. Playwright, performance tests,
-and security gates are documented roadmap work.
+scanning, production model accuracy, cloud availability, or operational observability.
+Playwright, performance, security, and monitoring gates are documented roadmap work.

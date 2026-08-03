@@ -46,6 +46,8 @@ spring:
         await-termination-period: 20s
 
 serviceops:
+  kafka:
+    health-timeout: ${SERVICEOPS_KAFKA_HEALTH_TIMEOUT:2s}
   auth:
     issuer: ${SERVICEOPS_AUTH_ISSUER:serviceops-local}
     audience: ${SERVICEOPS_AUTH_AUDIENCE:serviceops-api}
@@ -58,6 +60,7 @@ serviceops:
       viewer-username: ${SERVICEOPS_AUTH_VIEWER_USERNAME:viewer}
       viewer-password: ${SERVICEOPS_AUTH_VIEWER_PASSWORD:viewer_dev_2026}
   topics:
+    manage: ${SERVICEOPS_TOPICS_MANAGE:true}
     ticket-created: serviceops.ticket.created.v1
     prediction-completed: serviceops.ticket.prediction-completed.v1
     invalid: serviceops.ticket.invalid.v1

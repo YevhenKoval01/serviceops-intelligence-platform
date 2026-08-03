@@ -28,6 +28,44 @@ flowchart LR
 | `postgres` | Tickets, transactional event records, processed-event keys | `pg_isready` |
 | `kafka` | Three versioned event topics | Redpanda cluster health |
 
+## Azure deployment topology
+
+The cloud deployment preserves the same service and ownership boundaries while replacing
+local infrastructure with managed Azure services:
+
+```mermaid
+flowchart LR
+    Internet[Operator browser] -->|HTTPS| Web["Public Container App: React + Nginx"]
+    subgraph VNet[Azure virtual network]
+        subgraph ACA[Container Apps environment]
+            Web -->|Internal HTTPS| API["Internal Spring Boot Container App"]
+            Worker["FastAPI worker Container App"]
+        end
+        API -->|Private TLS| PG[(PostgreSQL Flexible Server)]
+    end
+    API -->|Kafka SASL/TLS| EH[(Azure Event Hubs)]
+    EH -->|Kafka SASL/TLS| Worker
+    Worker -->|Kafka SASL/TLS| EH
+    ACR["Private Azure Container Registry"] -->|Pull-only managed identity| ACA
+```
+
+Terraform creates a workload-profile Container Apps environment on a dedicated subnet and
+a separate delegated PostgreSQL subnet with private DNS. PostgreSQL has public network
+access disabled. Spring's ingress is internal, the worker has no ingress, and only Nginx
+receives a public HTTPS hostname. Nginx resolves the backend's generated internal hostname
+at container startup.
+
+Event Hubs remains reachable through its public Kafka endpoint but requires TLS plus a
+namespace-scoped SAS credential. Its three event hubs are provisioned explicitly because
+Event Hubs does not implement Kafka `AdminClient` topic management. Local Redpanda keeps
+automatic topic creation enabled; the Azure backend disables only that behavior.
+
+ACR administrator credentials are disabled. A shared user-assigned identity receives only
+the `AcrPull` role and is used by Container Apps to fetch immutable images. Terraform
+generates PostgreSQL, JWT, operator, and viewer secrets and stores them in encrypted Azure
+Blob remote state and Container Apps secret values. Key Vault integration, external
+identity, telemetry collection, analytics, and Kubernetes are outside this deployment.
+
 ## Ticket creation sequence
 
 ```mermaid
@@ -109,6 +147,8 @@ Role policy is deliberately small:
 Health checks and OpenAPI documents are public. Kafka consumers remain internal service
 workloads and do not accept end-user credentials. Compose includes known non-secret local
 accounts and a development signing key so a clean clone is reproducible; every value is
-environment-configurable. A deployed environment still requires TLS, external identity or
-controlled account provisioning, managed keys/secrets, token refresh/revocation policy,
-strict origin policy, dependency scanning, and external broker/database credentials.
+environment-configurable. The Azure deployment provides TLS ingress and managed
+broker/database endpoints, but a production environment still requires external identity
+or controlled account provisioning, Key Vault-backed secret rotation, token
+refresh/revocation policy, stricter network egress and origin policy, dependency scanning,
+and operational monitoring.

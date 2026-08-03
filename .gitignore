@@ -34,3 +34,10 @@ Thumbs.db
 # Logs and local runtime data
 *.log
 tmp/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/azure/terraform.tfvars

@@ -29,14 +29,25 @@ automated quality checks. The phases below begin only after the baseline remains
 - Dependency, container, and static security scanning.
 - Incident runbook and an example root-cause analysis.
 
-## Phase 2: cloud and observability
+## Delivered: Azure deployment
 
 - Azure Container Apps and Azure Database for PostgreSQL.
 - Azure Event Hubs through its Kafka-compatible endpoint.
 - Terraform infrastructure and controlled-cost demo lifecycle.
-- OpenTelemetry instrumentation and production monitoring.
+- GitHub OIDC deployment, immutable ACR builds, remote state, and cloud smoke test.
 
-Authentication and local role-based access are implemented and verified. The remaining
-items are roadmap work, not placeholder integrations. The repository must not be described
-as cloud-deployed, observable, or production-ready until the corresponding work is complete
-and verified.
+The implementation is deployable on demand and has an explicit destroy path. The
+repository does not claim that a public demo is continuously hosted or that the topology
+meets production availability requirements.
+
+## Phase 2: observability
+
+- OpenTelemetry instrumentation and trace context propagation.
+- Production metrics, logs, traces, alerting, and dashboards.
+- SLOs, error budgets, and a tested operational response process.
+
+Authentication, local role-based access, and the Azure deployment capability are
+implemented and verified locally. Analytics, RAG, observability, and Kubernetes remain
+roadmap work, not placeholder integrations. The repository must not be described as
+observable, production-ready, or continuously cloud-hosted until the corresponding work is
+complete and verified in an actual subscription.
