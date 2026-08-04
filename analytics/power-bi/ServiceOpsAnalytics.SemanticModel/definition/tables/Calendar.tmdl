@@ -1,0 +1,60 @@
+table Calendar
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		sourceColumn: date_day
+
+	column 'ISO Year'
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: iso_year
+
+	column Quarter
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: quarter_number
+
+	column 'Month Number'
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: month_number
+
+	column Month
+		dataType: string
+		summarizeBy: none
+		sourceColumn: month_name
+		sortByColumn: 'Month Number'
+
+	column 'Year Month'
+		dataType: string
+		summarizeBy: none
+		sourceColumn: year_month
+
+	column 'ISO Week'
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: iso_week
+
+	column 'ISO Weekday'
+		dataType: int64
+		formatString: 0
+		summarizeBy: none
+		sourceColumn: iso_weekday
+
+	partition Calendar = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(PostgreSQLHost, PostgreSQLDatabase),
+				    Calendar = Source{[Schema="analytics_mart", Item="dim_date"]}[Data]
+				in
+				    Calendar
+
+	annotation PBI_ResultType = Table

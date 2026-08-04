@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools==80.3.1", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "serviceops-analytics"
+version = "0.1.0"
+description = "Deterministic ServiceOps lifecycle fixtures and dbt analytics"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "dbt-core==1.11.12",
+    "dbt-postgres==1.11.0",
+    "psycopg[binary]==3.2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.5",
+    "ruff==0.11.8",
+]
+
+[project.scripts]
+serviceops-generate-analytics = "serviceops_analytics.generator:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

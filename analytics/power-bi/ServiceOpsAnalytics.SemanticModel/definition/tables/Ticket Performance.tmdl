@@ -1,0 +1,228 @@
+table 'Ticket Performance'
+
+	measure 'Ticket Count' = COUNTROWS('Ticket Performance')
+		formatString: #,##0
+
+	measure 'Tickets Created' = [Ticket Count]
+		formatString: #,##0
+
+	measure 'Resolved Tickets' = ```
+			CALCULATE(
+			    [Ticket Count],
+			    'Ticket Performance'[Status] = "RESOLVED"
+			)
+			```
+		formatString: #,##0
+
+	measure 'SLA Evaluated Tickets' = ```
+			CALCULATE(
+			    [Ticket Count],
+			    NOT ISBLANK('Ticket Performance'[Resolved At])
+			)
+			```
+		formatString: #,##0
+
+	measure 'SLA Compliant Tickets' = ```
+			CALCULATE(
+			    [Ticket Count],
+			    'Ticket Performance'[Resolution SLA Met] = TRUE()
+			)
+			```
+		formatString: #,##0
+
+	measure 'SLA Compliance %' = DIVIDE([SLA Compliant Tickets], [SLA Evaluated Tickets])
+		formatString: 0.0 %
+
+	measure 'Open Backlog' = ```
+			CALCULATE(
+			    [Ticket Count],
+			    'Ticket Performance'[Is Open Backlog] = TRUE()
+			)
+			```
+		formatString: #,##0
+
+	measure 'Breached Backlog' = ```
+			CALCULATE(
+			    [Ticket Count],
+			    'Ticket Performance'[Is Breached Backlog] = TRUE()
+			)
+			```
+		formatString: #,##0
+
+	measure 'Average Backlog Age (Hours)' = ```
+			DIVIDE(
+			    CALCULATE(
+			        AVERAGE('Ticket Performance'[Backlog Age Minutes]),
+			        'Ticket Performance'[Is Open Backlog] = TRUE()
+			    ),
+			    60
+			)
+			```
+		formatString: 0.0
+
+	measure 'First Response Time (Hours)' = ```
+			DIVIDE(
+			    AVERAGE('Ticket Performance'[First Response Minutes]),
+			    60
+			)
+			```
+		formatString: 0.0
+
+	measure 'MTTR (Hours)' = ```
+			DIVIDE(
+			    AVERAGE('Ticket Performance'[Resolution Minutes]),
+			    60
+			)
+			```
+		formatString: 0.0
+
+	measure 'Reopened Tickets' = ```
+			CALCULATE(
+			    [Ticket Count],
+			    'Ticket Performance'[Was Reopened] = TRUE()
+			)
+			```
+		formatString: #,##0
+
+	measure 'Reopen Rate' = DIVIDE([Reopened Tickets], [Ticket Count])
+		formatString: 0.0 %
+
+	measure 'Category Trend %' = ```
+			VAR CurrentTickets = [Tickets Created]
+			VAR PreviousMonthTickets =
+			    CALCULATE(
+			        [Tickets Created],
+			        DATEADD(Calendar[Date], -1, MONTH)
+			    )
+			RETURN
+			    DIVIDE(CurrentTickets - PreviousMonthTickets, PreviousMonthTickets)
+			```
+		formatString: 0.0 %
+
+	column 'Ticket ID'
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: ticket_id
+
+	column Status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+
+	column Priority
+		dataType: string
+		summarizeBy: none
+		sourceColumn: effective_priority
+
+	column Category
+		dataType: string
+		summarizeBy: none
+		sourceColumn: category
+
+	column 'Created At'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:mm:ss
+		summarizeBy: none
+		sourceColumn: created_at
+
+	column 'Created Date'
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		sourceColumn: created_date
+
+	column 'Updated At'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:mm:ss
+		summarizeBy: none
+		sourceColumn: updated_at
+
+	column 'First Response At'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:mm:ss
+		summarizeBy: none
+		sourceColumn: first_response_at
+
+	column 'Resolved At'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:mm:ss
+		summarizeBy: none
+		sourceColumn: resolved_at
+
+	column 'First Response Due At'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:mm:ss
+		summarizeBy: none
+		sourceColumn: first_response_due_at
+
+	column 'Resolution Due At'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:mm:ss
+		summarizeBy: none
+		sourceColumn: resolution_due_at
+
+	column 'First Response Minutes'
+		dataType: double
+		formatString: 0.0
+		summarizeBy: none
+		sourceColumn: first_response_minutes
+
+	column 'Resolution Minutes'
+		dataType: double
+		formatString: 0.0
+		summarizeBy: none
+		sourceColumn: resolution_minutes
+
+	column 'Backlog Age Minutes'
+		dataType: double
+		formatString: 0.0
+		summarizeBy: none
+		sourceColumn: backlog_age_minutes
+
+	column 'First Response SLA Met'
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: first_response_sla_met
+
+	column 'Resolution SLA Met'
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: resolution_sla_met
+
+	column 'Is Breached Backlog'
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: is_breached_backlog
+
+	column 'Is Open Backlog'
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: is_open_backlog
+
+	column 'Reopen Count'
+		dataType: int64
+		formatString: 0
+		summarizeBy: sum
+		sourceColumn: reopen_count
+
+	column 'Was Reopened'
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: was_reopened
+
+	column 'History Quality'
+		dataType: string
+		summarizeBy: none
+		sourceColumn: history_quality
+
+	partition 'Ticket Performance' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(PostgreSQLHost, PostgreSQLDatabase),
+				    TicketPerformance = Source{[Schema="analytics_mart", Item="fct_ticket_performance"]}[Data]
+				in
+				    TicketPerformance
+
+	annotation PBI_ResultType = Table

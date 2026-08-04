@@ -1,0 +1,14 @@
+serviceops_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_POSTGRES_HOST', 'postgres') }}"
+      port: "{{ env_var('DBT_POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_POSTGRES_USER', 'serviceops') }}"
+      password: "{{ env_var('DBT_POSTGRES_PASSWORD', 'serviceops_dev') }}"
+      dbname: "{{ env_var('DBT_POSTGRES_DATABASE', 'serviceops') }}"
+      schema: analytics
+      threads: 4
+      connect_timeout: 10
+      retries: 2

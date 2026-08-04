@@ -1,0 +1,4 @@
+priority,first_response_target_minutes,resolution_target_minutes
+HIGH,60,240
+MEDIUM,240,480
+LOW,480,1440

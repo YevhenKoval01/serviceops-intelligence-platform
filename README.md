@@ -4,7 +4,8 @@ ServiceOps Intelligence is an operator-facing support platform that stores incom
 tickets immediately and classifies them asynchronously. The core vertical slice connects
 React, Spring Boot, PostgreSQL, Kafka, FastAPI, and a real scikit-learn model in one
 locally reproducible system. Persisted BCrypt accounts and short-lived signed tokens protect
-the operator workflow with read-only and mutating roles.
+the operator workflow with read-only and mutating roles. Immutable lifecycle history, tested
+dbt marts, and a Power BI semantic model provide reproducible service-performance analytics.
 
 > Project status: **Baseline complete - active development**
 
@@ -54,6 +55,11 @@ the ticket. A scheduled relay locks due rows with `FOR UPDATE SKIP LOCKED`, wait
 acknowledgement, and only then records publication. Failed attempts remain durable and are
 retried with bounded exponential backoff.
 
+Every ticket creation and real status transition is also retained in PostgreSQL. An opt-in,
+deterministic 100,000-event fixture feeds dbt models for SLA compliance, backlog age, first
+response time, MTTR, reopen rate, and category trends. Normal application startup never
+loads this analytical fixture.
+
 ## Technology choices
 
 | Component | Role |
@@ -65,6 +71,8 @@ retried with bounded exponential backoff.
 | PostgreSQL 17 | Durable ticket, transactional outbox, and consumer-idempotency data |
 | Redpanda | Pinned local Kafka-protocol broker with three versioned topics |
 | FastAPI, scikit-learn, pandas | HTTP model inspection plus asynchronous ticket inference |
+| dbt Core, dbt-postgres | Tested PostgreSQL lifecycle, SLA-performance, calendar, and daily trend marts |
+| Power BI TMDL | Source-controlled semantic model and operational DAX measures |
 | Docker Compose | Health-gated local topology for all five services |
 | Azure Container Apps, PostgreSQL, Event Hubs, ACR | Terraform-managed cloud runtime with private data and public frontend ingress |
 | GitHub Actions | Independent Java, Python, frontend, Terraform, container image, and manual Azure deployment jobs |
@@ -125,6 +133,22 @@ and explicit destroy procedure.
 This repository contains and validates the deployment capability; it does not claim an
 always-on public environment. Running the workflow creates billable Azure resources until
 the matching destroy action completes.
+
+## Build analytics locally
+
+Analytics is opt-in and runs against the PostgreSQL schema migrated by the backend:
+
+```bash
+docker compose up --build --detach --wait
+docker compose --profile analytics build analytics
+docker compose --profile analytics run --rm analytics serviceops-generate-analytics
+docker compose --profile analytics run --rm analytics
+```
+
+The generator produces exactly 100,000 deterministic, non-sensitive lifecycle events by
+default. The final analytics command executes `dbt build`, including every model and data
+test. See the [analytics guide](analytics/README.md) for metric definitions, idempotency,
+environment overrides, migrated-history semantics, and Power BI model usage.
 
 ## Demonstration
 
@@ -187,6 +211,17 @@ terraform -chdir=infra/azure validate
 terraform -chdir=infra/azure test
 ```
 
+Analytics (Python 3.12+, PostgreSQL 17):
+
+```bash
+cd analytics
+python -m pip install -e ".[dev]"
+python -m ruff check src tests scripts
+python -m pytest
+python scripts/validate_power_bi_model.py
+dbt build --project-dir dbt --profiles-dir dbt
+```
+
 ## Public API
 
 - `POST /api/auth/login` (public credential exchange)
@@ -217,21 +252,29 @@ invalid-message handling.
 - [Test strategy and acceptance procedure](docs/test-strategy.md)
 - [Phased roadmap](docs/roadmap.md)
 - [Azure deployment and teardown](infra/azure/README.md)
+- [Analytics pipeline, metrics, and Power BI model](analytics/README.md)
 
 ## Verified baseline
 
-The latest local regression on 3 August 2026 measured:
+The latest local regression on 4 August 2026 measured:
 
-- Java: 29 tests passed, including Spring Security role enforcement, PostgreSQL 17,
-  Flyway V1-V3, JPA, JSONB, outbox retry state, and concurrent row locking through
-  Testcontainers.
+- Java: 32 tests passed, including Spring Security role enforcement, PostgreSQL 17,
+  Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
+  locking through Testcontainers.
 - Python: Ruff passed and 16 pytest tests passed, including shared JWT validation and
   Event Hubs Kafka profile validation.
 - Frontend: ESLint passed, 17 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
-- Compose: configuration validation passed; all three images built; PostgreSQL, Redpanda,
-  Spring Boot, FastAPI, and React/Nginx reported healthy.
-- End to end: the smoke test passed twice after separate clean-volume starts.
+- Analytics: Ruff passed and 4 pytest tests passed; the fixed fixture generated 40,000
+  tickets and exactly 100,000 lifecycle events; dbt built 6 models and passed all 52 data
+  tests on PostgreSQL 17; the 59-pass build had zero warnings or errors; the Power BI TMDL
+  contract contained all 6 required measures. Repeating the fixture inserted zero rows and
+  reproduced SHA-256 `f2d50639d79b9ac3d0b20a1a246f40c67cb0060fa320f6ba3cf12a861f2fd464`.
+- Compose: configuration validation passed; all four images built; PostgreSQL, Redpanda,
+  Spring Boot, FastAPI, and React/Nginx reported healthy; the opt-in analytics image loaded
+  the full fixture and completed its own green `dbt build`.
+- End to end: the authenticated smoke test passed from a clean application volume, and its
+  runtime ticket retained ordered `CREATED` and `STATUS_CHANGED` lifecycle rows.
 - Authentication: anonymous access returned `401`; the viewer could read but received
   `403` for Spring and FastAPI mutations; the operator token worked across both services;
   bootstrap passwords were stored as BCrypt hashes.
@@ -253,8 +296,10 @@ The latest local regression on 3 August 2026 measured:
 ## Current limitations
 
 - The synthetic model dataset is deliberately small and non-production.
-- Analytics, RAG, observability, and Kubernetes remain roadmap work and are not represented
-  as complete.
+- RAG, observability, and Kubernetes remain roadmap work and are not represented as complete.
+- The Power BI semantic model and measures are source controlled, but cross-platform CI does
+  not claim a Desktop/Fabric refresh or a published dashboard. Operational SLA enforcement,
+  escalation, and ownership workflows remain separate roadmap work.
 - Azure deployment is implemented as validated Terraform and a manual deploy/destroy
   workflow, but no always-on hosted environment or production availability claim is made.
   Event Hubs and ACR use authenticated public endpoints, while PostgreSQL is private.

@@ -136,6 +136,23 @@ services:
     networks:
       - serviceops
 
+  analytics:
+    profiles: ["analytics"]
+    build:
+      context: ./analytics
+    environment:
+      DBT_POSTGRES_HOST: postgres
+      DBT_POSTGRES_PORT: "5432"
+      DBT_POSTGRES_USER: ${POSTGRES_USER:-serviceops}
+      DBT_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-serviceops_dev}
+      DBT_POSTGRES_DATABASE: ${POSTGRES_DB:-serviceops}
+      ANALYTICS_DATABASE_URL: postgresql://${POSTGRES_USER:-serviceops}:${POSTGRES_PASSWORD:-serviceops_dev}@postgres:5432/${POSTGRES_DB:-serviceops}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - serviceops
+
 volumes:
   postgres-data:
   ai-model:

@@ -19,6 +19,7 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final TicketEventRepository eventRepository;
+    private final TicketLifecycleEventRepository lifecycleEventRepository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -26,19 +27,22 @@ public class TicketService {
     public TicketService(
             TicketRepository ticketRepository,
             TicketEventRepository eventRepository,
+            TicketLifecycleEventRepository lifecycleEventRepository,
             ObjectMapper objectMapper
     ) {
-        this(ticketRepository, eventRepository, objectMapper, Clock.systemUTC());
+        this(ticketRepository, eventRepository, lifecycleEventRepository, objectMapper, Clock.systemUTC());
     }
 
     TicketService(
             TicketRepository ticketRepository,
             TicketEventRepository eventRepository,
+            TicketLifecycleEventRepository lifecycleEventRepository,
             ObjectMapper objectMapper,
             Clock clock
     ) {
         this.ticketRepository = ticketRepository;
         this.eventRepository = eventRepository;
+        this.lifecycleEventRepository = lifecycleEventRepository;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -80,6 +84,14 @@ public class TicketService {
                 objectMapper.valueToTree(event),
                 now
         ));
+        lifecycleEventRepository.save(new TicketLifecycleEvent(
+                UUID.randomUUID(),
+                ticketId,
+                TicketLifecycleEventType.CREATED,
+                null,
+                TicketStatus.OPEN,
+                now
+        ));
         return ticket;
     }
 
@@ -97,7 +109,23 @@ public class TicketService {
     public Ticket updateStatus(UUID id, TicketStatus status) {
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new TicketNotFoundException(id));
-        ticket.updateStatus(status, clock.instant());
+        TicketStatus previousStatus = ticket.getStatus();
+        if (previousStatus == status) {
+            return ticket;
+        }
+        Instant now = clock.instant();
+        ticket.updateStatus(status, now);
+        TicketLifecycleEventType eventType = previousStatus == TicketStatus.RESOLVED
+                ? TicketLifecycleEventType.REOPENED
+                : TicketLifecycleEventType.STATUS_CHANGED;
+        lifecycleEventRepository.save(new TicketLifecycleEvent(
+                UUID.randomUUID(),
+                id,
+                eventType,
+                previousStatus,
+                status,
+                now
+        ));
         return ticket;
     }
 

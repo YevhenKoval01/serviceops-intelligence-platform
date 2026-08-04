@@ -3,7 +3,8 @@
 ServiceOps Intelligence is a compact event-driven support workflow. Spring Boot owns
 the public business API and PostgreSQL data. The Python service owns the educational
 machine-learning model. Kafka decouples ticket intake from prediction so operators do
-not wait for inference before a ticket is stored.
+not wait for inference before a ticket is stored. A read-oriented dbt layer turns immutable
+ticket lifecycle history into tested PostgreSQL marts for the Power BI semantic model.
 
 ## Runtime topology
 
@@ -27,6 +28,31 @@ flowchart LR
 | `ai-service` | Shared JWT validation for model HTTP endpoints, model loading, synchronous `/predict`, Kafka inference worker | `/health` requires a model and a broker-connected worker |
 | `postgres` | Tickets, transactional event records, processed-event keys | `pg_isready` |
 | `kafka` | Three versioned event topics | Redpanda cluster health |
+
+## Analytics topology
+
+```mermaid
+flowchart LR
+    API[Spring Boot] -->|Ticket + lifecycle transitions| DB[(PostgreSQL public schema)]
+    Fixture[Deterministic fixture generator] -->|Opt-in 100,000 events| DB
+    DB -->|Read operational sources| dbt[dbt build + data tests]
+    dbt --> Staging[(analytics_staging)]
+    Staging --> Facts[(analytics_intermediate)]
+    Facts --> Marts[(analytics_mart)]
+    Marts -->|Import model| PBI[Power BI TMDL semantic model]
+```
+
+Migration V4 records creation and every status change in `ticket_lifecycle_events` within
+the same transaction as the ticket command. Repeating the current status is a no-op and
+does not create a misleading lifecycle record. A transition away from `RESOLVED` is tagged
+`REOPENED`. Existing V1-V3 tickets receive a `MIGRATED` snapshot at their last update time;
+the warehouse exposes this lower-fidelity lineage instead of fabricating prior events.
+
+dbt reads the application-owned tables and writes only to `analytics_*` schemas. The
+performance mart has one row per ticket, priority-based first-response and resolution
+deadlines, exact or qualified timestamps, current backlog age, breach flags, and reopen
+counts. A separate daily mart supports category and priority trends. The Power BI model
+keeps connection host/database as parameters and never stores credentials.
 
 ## Azure deployment topology
 
@@ -64,7 +90,9 @@ ACR administrator credentials are disabled. A shared user-assigned identity rece
 the `AcrPull` role and is used by Container Apps to fetch immutable images. Terraform
 generates PostgreSQL, JWT, operator, and viewer secrets and stores them in encrypted Azure
 Blob remote state and Container Apps secret values. Key Vault integration, external
-identity, telemetry collection, analytics, and Kubernetes are outside this deployment.
+identity, telemetry collection, managed analytics execution, Power BI publishing, and
+Kubernetes are outside this deployment. The repository analytics can run against any
+reachable PostgreSQL instance but is not silently provisioned by the Azure workflow.
 
 ## Ticket creation sequence
 
@@ -122,10 +150,12 @@ those duplicates while closing any pre-upgrade publication gap.
 
 ## Data ownership
 
-Spring Boot is the only writer to application tables, including `app_users`. Passwords are
+Spring Boot is the normal writer to application tables, including `app_users`. Passwords are
 stored only as BCrypt hashes. The AI service does not connect to PostgreSQL. The model
 artifact is stored in the Compose `ai-model` volume and retrained only when a compatible
-`baseline-1` artifact is absent.
+`baseline-1` artifact is absent. The explicitly invoked analytics fixture generator is the
+only exception: it bulk-loads deterministic synthetic tickets and histories for validation.
+dbt is read-only toward application tables and owns only its analytical schemas.
 
 ## Security boundary
 

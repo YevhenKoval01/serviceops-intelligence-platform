@@ -18,6 +18,13 @@ ai-service/.mypy_cache/
 *.py[cod]
 *.egg-info/
 ai-service/model/
+analytics/.venv/
+analytics/.pytest_cache/
+analytics/.ruff_cache/
+analytics/dbt/target/
+analytics/dbt/logs/
+analytics/dbt/dbt_packages/
+analytics/dbt/.user.yml
 
 # Node
 frontend/node_modules/

@@ -1,0 +1,7 @@
+expression PostgreSQLHost = "localhost" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+
+	annotation PBI_ResultType = Text
+
+expression PostgreSQLDatabase = "serviceops" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+
+	annotation PBI_ResultType = Text

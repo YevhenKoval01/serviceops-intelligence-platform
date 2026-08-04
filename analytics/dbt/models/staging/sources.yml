@@ -1,0 +1,48 @@
+version: 2
+
+sources:
+  - name: serviceops
+    description: Operational tables owned by the Spring Boot service.
+    schema: public
+    tables:
+      - name: tickets
+        description: Current ticket state and asynchronous prediction output.
+        columns:
+          - name: id
+            data_tests: [not_null, unique]
+          - name: status
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: [OPEN, IN_PROGRESS, RESOLVED]
+          - name: created_at
+            data_tests: [not_null]
+          - name: updated_at
+            data_tests: [not_null]
+      - name: ticket_lifecycle_events
+        description: Exact status transitions from Flyway V4 onward and explicit migrated snapshots.
+        columns:
+          - name: id
+            data_tests: [not_null, unique]
+          - name: ticket_id
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('serviceops', 'tickets')
+                    field: id
+          - name: event_type
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: [CREATED, STATUS_CHANGED, REOPENED, MIGRATED]
+          - name: current_status
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: [OPEN, IN_PROGRESS, RESOLVED]
+          - name: occurred_at
+            data_tests: [not_null]

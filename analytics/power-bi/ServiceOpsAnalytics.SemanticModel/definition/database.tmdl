@@ -1,0 +1,3 @@
+database ServiceOpsAnalytics
+	compatibilityLevel: 1601
+	compatibilityMode: powerBI

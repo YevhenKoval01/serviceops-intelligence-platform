@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: fct_ticket_performance
+    description: One row per ticket with SLA deadlines and lifecycle performance measures.
+    columns:
+      - name: ticket_id
+        data_tests: [not_null, unique]
+      - name: status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [OPEN, IN_PROGRESS, RESOLVED]
+      - name: effective_priority
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [LOW, MEDIUM, HIGH]
+      - name: category
+        data_tests: [not_null]
+      - name: created_date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: history_quality
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EXACT, MIGRATED_SNAPSHOT]
+  - name: dim_date
+    description: Calendar dimension spanning all ticket creation dates through today.
+    columns:
+      - name: date_day
+        data_tests: [not_null, unique]
+  - name: mart_serviceops_daily
+    description: Daily category and priority aggregates for efficient trend reporting.
+    columns:
+      - name: daily_slice_id
+        data_tests: [not_null, unique]
+      - name: created_date
+        data_tests: [not_null]
+      - name: category
+        data_tests: [not_null]
+      - name: effective_priority
+        data_tests: [not_null]
+
+exposures:
+  - name: serviceops_power_bi_semantic_model
+    label: ServiceOps Power BI semantic model
+    type: dashboard
+    maturity: high
+    url: https://learn.microsoft.com/power-bi/developer/projects/projects-dataset
+    description: Source-controlled Power BI TMDL model in analytics/power-bi.
+    depends_on:
+      - ref('fct_ticket_performance')
+      - ref('dim_date')
+      - ref('mart_serviceops_daily')
+    owner:
+      name: ServiceOps analytics
+      email: serviceops@example.invalid

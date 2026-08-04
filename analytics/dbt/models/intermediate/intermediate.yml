@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: fct_ticket_lifecycle_events
+    description: Ordered ticket lifecycle fact with transition timing.
+    columns:
+      - name: lifecycle_event_id
+        data_tests: [not_null, unique]
+      - name: ticket_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_tickets')
+                field: ticket_id
+      - name: event_sequence
+        data_tests: [not_null]
+      - name: event_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [CREATED, STATUS_CHANGED, REOPENED, MIGRATED]

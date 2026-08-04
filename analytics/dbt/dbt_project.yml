@@ -1,0 +1,31 @@
+name: serviceops_analytics
+version: 1.0.0
+config-version: 2
+
+profile: serviceops_analytics
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+clean-targets: ["target", "dbt_packages", "logs"]
+
+models:
+  serviceops_analytics:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: mart
+
+seeds:
+  serviceops_analytics:
+    +schema: reference
+    sla_policies:
+      +column_types:
+        priority: varchar(16)
+        first_response_target_minutes: integer
+        resolution_target_minutes: integer

@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: stg_tickets
+    description: Normalized operational ticket state with resolved analytical dimensions.
+    columns:
+      - name: ticket_id
+        data_tests: [not_null, unique]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [OPEN, IN_PROGRESS, RESOLVED]
+      - name: effective_priority
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [LOW, MEDIUM, HIGH]
+      - name: category
+        data_tests: [not_null]
+  - name: stg_ticket_lifecycle_events
+    description: Normalized lifecycle event stream.
+    columns:
+      - name: lifecycle_event_id
+        data_tests: [not_null, unique]
+      - name: ticket_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_tickets')
+                field: ticket_id

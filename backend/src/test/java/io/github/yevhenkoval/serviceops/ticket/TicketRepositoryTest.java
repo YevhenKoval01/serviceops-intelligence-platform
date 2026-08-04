@@ -48,6 +48,9 @@ class TicketRepositoryTest {
     private TicketEventRepository ticketEventRepository;
 
     @Autowired
+    private TicketLifecycleEventRepository lifecycleEventRepository;
+
+    @Autowired
     private UserAccountRepository userAccountRepository;
 
     @Autowired
@@ -114,6 +117,41 @@ class TicketRepositoryTest {
                     assertThat(event.getPublishAttempts()).isZero();
                     assertThat(event.getNextAttemptAt()).isEqualTo(now);
                 });
+    }
+
+    @Test
+    void flywaySchemaPersistsOrderedLifecycleHistory() {
+        Instant now = Instant.parse("2026-08-04T10:00:00Z");
+        UUID ticketId = UUID.randomUUID();
+        ticketRepository.saveAndFlush(new Ticket(
+                ticketId,
+                "Analytics lifecycle validation",
+                "Status transitions must be retained in timestamp order for the analytics models.",
+                Priority.MEDIUM,
+                now
+        ));
+        lifecycleEventRepository.saveAllAndFlush(List.of(
+                new TicketLifecycleEvent(
+                        UUID.randomUUID(),
+                        ticketId,
+                        TicketLifecycleEventType.CREATED,
+                        null,
+                        TicketStatus.OPEN,
+                        now
+                ),
+                new TicketLifecycleEvent(
+                        UUID.randomUUID(),
+                        ticketId,
+                        TicketLifecycleEventType.STATUS_CHANGED,
+                        TicketStatus.OPEN,
+                        TicketStatus.IN_PROGRESS,
+                        now.plusSeconds(900)
+                )
+        ));
+
+        assertThat(lifecycleEventRepository.findAllByTicketIdOrderByOccurredAtAscIdAsc(ticketId))
+                .extracting(TicketLifecycleEvent::getCurrentStatus)
+                .containsExactly(TicketStatus.OPEN, TicketStatus.IN_PROGRESS);
     }
 
     @Test

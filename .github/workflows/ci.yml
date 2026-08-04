@@ -91,14 +91,66 @@ jobs:
       - name: Build
         run: npm run build
 
+  analytics:
+    name: Analytics
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.5-alpine
+        env:
+          POSTGRES_DB: serviceops
+          POSTGRES_USER: serviceops
+          POSTGRES_PASSWORD: serviceops_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U serviceops -d serviceops"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DBT_POSTGRES_HOST: localhost
+      DBT_POSTGRES_PORT: "5432"
+      DBT_POSTGRES_USER: serviceops
+      DBT_POSTGRES_PASSWORD: serviceops_ci
+      DBT_POSTGRES_DATABASE: serviceops
+      ANALYTICS_DATABASE_URL: postgresql://serviceops:serviceops_ci@localhost:5432/serviceops
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: analytics/pyproject.toml
+      - name: Install analytics tooling
+        working-directory: analytics
+        run: python -m pip install --upgrade pip==25.1.1 && python -m pip install -e ".[dev]"
+      - name: Lint fixture generator
+        working-directory: analytics
+        run: python -m ruff check src tests scripts
+      - name: Test fixture generator
+        working-directory: analytics
+        run: python -m pytest
+      - name: Apply operational migrations
+        run: python analytics/scripts/apply_test_migrations.py
+      - name: Generate 100,000 lifecycle events
+        working-directory: analytics
+        run: serviceops-generate-analytics
+      - name: Build and test dbt models
+        working-directory: analytics/dbt
+        run: dbt build --profiles-dir .
+      - name: Validate Power BI model sources and measures
+        run: python analytics/scripts/validate_power_bi_model.py
+
   docker:
     name: Container images
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    needs: [backend, ai-service, frontend]
+    needs: [backend, ai-service, frontend, analytics]
     steps:
       - uses: actions/checkout@v4
       - name: Validate Compose model
         run: docker compose config --quiet
       - name: Build all images
-        run: docker compose build
+        run: docker compose --profile analytics build

@@ -1,0 +1,3 @@
+relationship 72f7f9d1-3cc0-53d9-929f-8bfcd845409a
+	fromColumn: 'Ticket Performance'.'Created Date'
+	toColumn: Calendar.Date

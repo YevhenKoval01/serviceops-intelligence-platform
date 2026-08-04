@@ -9,13 +9,15 @@ Compose smoke test proves the real cross-service flow.
 | Layer | Coverage |
 | --- | --- |
 | Java unit and web slice | Login exchange, anonymous `401`, viewer `403`, request normalization and validation, RFC 7807 errors, transactional outbox state and retries, acknowledged Kafka delivery, prediction contract validation and idempotency, structured dead-letter records |
-| Java repository integration | Real PostgreSQL 17 container, Flyway schema validation through V3, BCrypt account record, JPA ticket persistence, JSONB outbox persistence, due-event locking, query ordering |
+| Java repository integration | Real PostgreSQL 17 container, Flyway schema validation through V4, BCrypt account record, JPA ticket and lifecycle persistence, JSONB outbox persistence, due-event locking, query ordering |
 | Python unit/API | Shared JWT signature/claim validation, role denial, dataset schema, deterministic training, response constraints, trimmed input validation, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
 | Frontend component/API | Sign-in/session handling, bearer headers, expiry cleanup, viewer UI, form validation and failures, queue and empty states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
 | Compose smoke | Five health checks, real sign-in, anonymous rejection, viewer/operator policy, shared Spring/FastAPI token, frontend asset, invalid API request, ticket persistence, both Kafka topics, ML result, queue listing, status update, summary totals |
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
 | Terraform | Formatting, AzureRM schema validation, and a credential-free mocked plan asserting private PostgreSQL, ingress boundaries, managed ACR access, all event hubs, and a continuously running prediction worker |
 | Azure deployment smoke | Manual workflow OIDC login, ACR remote builds, Terraform plan/apply, frontend health, authenticated ticket creation, Event Hubs round trip, and eventual ML classification |
+| Analytics unit/static | Deterministic 100,000-event cardinality, stable seed digest, valid transition chains, input validation, generator lint, and Power BI TMDL source/measure checks |
+| Analytics integration | PostgreSQL 17 operational migrations, bulk lifecycle load, dbt seeds/models, source/generic/singular data tests, SLA consistency, transition integrity, and ticket coverage |
 
 ## Local commands
 
@@ -69,6 +71,23 @@ The manual Azure workflow performs the credentialed plan/apply and runs
 `scripts/cloud_smoke_test.py`. It is intentionally excluded from pull-request CI because it
 creates billable resources and requires an explicitly authorized Azure subscription.
 
+Analytics:
+
+```bash
+cd analytics
+python -m pip install -e ".[dev]"
+python -m ruff check src tests scripts
+python -m pytest
+python scripts/validate_power_bi_model.py
+serviceops-generate-analytics
+dbt build --project-dir dbt --profiles-dir dbt
+```
+
+The final two commands require a migrated PostgreSQL database and the documented
+`ANALYTICS_DATABASE_URL`/`DBT_POSTGRES_*` variables. CI supplies an isolated PostgreSQL 17
+service, loads all 100,000 events, and runs the complete build rather than compiling SQL
+without executing it.
+
 ## Baseline acceptance
 
 Before the final baseline commit:
@@ -84,6 +103,10 @@ Before the final baseline commit:
 8. Tear down with volumes and repeat the full build, start, health, and smoke flow.
 9. Tear down with volumes and repeat a second time from clean application data.
 10. Inspect every changed and untracked path for secrets and generated artifacts.
+11. Generate the deterministic 100,000-event fixture in an isolated database and require a
+    green `dbt build`, including all source, generic, and singular tests.
+12. Validate that the Power BI semantic model references the tested marts and contains all
+    six required business measures without embedded credentials.
 
 GitHub Actions mirrors the language and Terraform commands and builds every Compose image
 after all quality jobs pass. Pull requests require no repository secrets. Azure deploy and
@@ -91,6 +114,8 @@ destroy are separate manual actions guarded by OIDC and an exact destroy confirm
 
 ## Intentional exclusions
 
-The baseline does not claim browser-engine end-to-end automation, load metrics, security
-scanning, production model accuracy, cloud availability, or operational observability.
+The baseline does not claim browser-engine end-to-end automation, application load metrics,
+security scanning, production model accuracy, cloud availability, or operational observability.
 Playwright, performance, security, and monitoring gates are documented roadmap work.
+Power BI Desktop/Fabric refresh and visual QA remain environment-specific manual checks;
+CI validates the tracked semantic-model structure and its mart contract.
