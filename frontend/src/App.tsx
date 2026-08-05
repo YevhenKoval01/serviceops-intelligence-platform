@@ -4,6 +4,7 @@ import { AUTH_EXPIRED_EVENT, clearSession, expireSession, loadSession } from "./
 import { getTicket, listTickets } from "./api";
 import { CreateTicketForm } from "./components/CreateTicketForm";
 import { LoginForm } from "./components/LoginForm";
+import { KnowledgeAssistant } from "./components/KnowledgeAssistant";
 import { TicketDetail } from "./components/TicketDetail";
 import { TicketTable } from "./components/TicketTable";
 import type { AuthSession, Ticket } from "./types";
@@ -199,6 +200,8 @@ export default function App() {
             <span>You can inspect the queue and ticket details. Mutating actions require Operator.</span>
           </section>
         )}
+
+        <KnowledgeAssistant />
 
         <section className="queue-panel" aria-labelledby="ticket-queue-heading">
           <div className="section-heading">

@@ -103,3 +103,33 @@ def test_rejects_token_with_wrong_signature() -> None:
         response = client.get("/model-info", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 401
+
+
+def test_knowledge_assistant_returns_cited_grounded_answer() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/knowledge/ask",
+            headers=authorization("VIEWER"),
+            json={"question": "How should I handle repeated HTTP 500 API errors?"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["grounded"] is True
+    assert body["indexVersion"].startswith("tfidf-extractive-1-")
+    assert body["citations"][0]["documentId"] == "technical-api-errors"
+    assert "[1]" in body["answer"]
+
+
+def test_knowledge_assistant_abstains_and_requires_authentication() -> None:
+    question = {"question": "What is served in the office cafeteria today?"}
+    with TestClient(app) as client:
+        anonymous = client.post("/knowledge/ask", json=question)
+        response = client.post(
+            "/knowledge/ask", headers=authorization("OPERATOR"), json=question
+        )
+
+    assert anonymous.status_code == 401
+    assert response.status_code == 200
+    assert response.json()["grounded"] is False
+    assert response.json()["citations"] == []

@@ -121,6 +121,9 @@ services:
       BACKEND_SCHEME: http
       BACKEND_HOST: backend
       BACKEND_PORT: "8080"
+      AI_SCHEME: http
+      AI_HOST: ai-service
+      AI_PORT: "8000"
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:

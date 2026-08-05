@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "serviceops-ai"
-version = "0.1.0"
-description = "Deterministic ServiceOps ticket prediction service"
+version = "0.2.0"
+description = "Deterministic ServiceOps prediction and cited knowledge service"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "confluent-kafka==2.8.2",

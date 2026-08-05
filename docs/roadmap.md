@@ -12,10 +12,22 @@ automated quality checks. The phases below begin only after the baseline remains
 ## Phase 1.2: AI quality
 
 - SLA-breach prediction with a documented baseline comparison.
-- Retrieval-augmented knowledge assistant with citations.
 - Human review and approval workflow.
 - Evaluation data, quality metrics, model and prompt versioning.
 - Prompt-injection and unsafe-output tests.
+
+## Delivered: retrieval-augmented knowledge assistant
+
+- Six versioned, source-controlled operational runbooks split into heading-aware chunks.
+- Reproducible TF-IDF retrieval with title weighting and lexical-support gating.
+- Citation-bound extractive answers, an explicit unsupported-question abstention path, and
+  authenticated access for both local roles.
+- A fixed quality set covering 12 supported questions and 4 unrelated questions, plus
+  local and Azure public-boundary smoke checks.
+
+This is a controlled local RAG baseline without an external LLM, vector database, web search,
+conversation memory, or automatic ingestion. Human approval and broader prompt-injection and
+unsafe-output testing remain AI-quality roadmap work.
 
 ## Phase 1.3: reliability and QA
 
@@ -57,8 +69,8 @@ require an explicitly configured Desktop/Fabric environment.
 - Production metrics, logs, traces, alerting, and dashboards.
 - SLOs, error budgets, and a tested operational response process.
 
-Authentication, local role-based access, and the Azure deployment capability are
-implemented and verified locally. RAG, observability, and Kubernetes remain
-roadmap work, not placeholder integrations. The repository must not be described as
-observable, production-ready, or continuously cloud-hosted until the corresponding work is
-complete and verified in an actual subscription.
+Authentication, local role-based access, Azure deployment, analytics, and the cited RAG
+baseline are implemented and verified locally. Observability and Kubernetes remain roadmap
+work, not placeholder integrations. The repository must not be described as observable,
+production-ready, or continuously cloud-hosted until the corresponding work is complete and
+verified in an actual subscription.

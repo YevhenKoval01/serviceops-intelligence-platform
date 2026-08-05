@@ -12,6 +12,8 @@ ticket lifecycle history into tested PostgreSQL marts for the Power BI semantic 
 flowchart LR
     Operator[Support operator] -->|Credentials| UI[React + Nginx]
     UI -->|Login + authenticated REST| API[Spring Boot + Security]
+    UI -->|Authenticated knowledge question| RAG[FastAPI retrieval assistant]
+    KB[(Versioned Markdown runbooks)] -->|TF-IDF chunks| RAG
     API -->|BCrypt account lookup| DB
     API -->|Ticket + outbox transaction| DB[(PostgreSQL)]
     DB -->|Pending rows| Relay[Spring outbox relay]
@@ -25,7 +27,7 @@ flowchart LR
 | --- | --- | --- |
 | `frontend` | Sign-in, role-aware operator queue, ticket creation, details, status changes, polling | Nginx `/health` |
 | `backend` | Local identity, JWT issuance/validation, role enforcement, REST API, persistence, event production and prediction consumption | Actuator verifies application, PostgreSQL, and Kafka |
-| `ai-service` | Shared JWT validation for model HTTP endpoints, model loading, synchronous `/predict`, Kafka inference worker | `/health` requires a model and a broker-connected worker |
+| `ai-service` | Shared JWT validation, cited knowledge retrieval, model loading, synchronous `/predict`, Kafka inference worker | `/health` requires the model, knowledge index, and broker-connected worker |
 | `postgres` | Tickets, transactional event records, processed-event keys | `pg_isready` |
 | `kafka` | Three versioned event topics | Redpanda cluster health |
 
@@ -65,21 +67,22 @@ flowchart LR
     subgraph VNet[Azure virtual network]
         subgraph ACA[Container Apps environment]
             Web -->|Internal HTTPS| API["Internal Spring Boot Container App"]
-            Worker["FastAPI worker Container App"]
+            Web -->|Internal HTTPS knowledge proxy| Worker["Internal FastAPI AI Container App"]
         end
         API -->|Private TLS| PG[(PostgreSQL Flexible Server)]
     end
     API -->|Kafka SASL/TLS| EH[(Azure Event Hubs)]
     EH -->|Kafka SASL/TLS| Worker
     Worker -->|Kafka SASL/TLS| EH
+    Runbooks[(Bundled runbooks)] -->|Startup index| Worker
     ACR["Private Azure Container Registry"] -->|Pull-only managed identity| ACA
 ```
 
 Terraform creates a workload-profile Container Apps environment on a dedicated subnet and
 a separate delegated PostgreSQL subnet with private DNS. PostgreSQL has public network
-access disabled. Spring's ingress is internal, the worker has no ingress, and only Nginx
-receives a public HTTPS hostname. Nginx resolves the backend's generated internal hostname
-at container startup.
+access disabled. Spring and FastAPI have internal ingress, and only Nginx receives a public
+HTTPS hostname. Nginx resolves both generated internal hostnames at container startup and
+proxies authenticated `/assistant/` requests to the AI service.
 
 Event Hubs remains reachable through its public Kafka endpoint but requires TLS plus a
 namespace-scoped SAS credential. Its three event hubs are provisioned explicitly because
@@ -157,6 +160,13 @@ artifact is stored in the Compose `ai-model` volume and retrained only when a co
 only exception: it bulk-loads deterministic synthetic tickets and histories for validation.
 dbt is read-only toward application tables and owns only its analytical schemas.
 
+The AI service also owns the read-only knowledge index. Six tracked Markdown runbooks are
+parsed into 18 heading-aware chunks at startup; their content and metadata produce a stable
+index version digest. Query-time ranking combines word and phrase TF-IDF similarity, title
+similarity, and lexical overlap. The extractive answer stage can use only retrieved source
+sentences, labels each item with a citation number, and abstains when no passage crosses the
+support gate. No user question or generated response is persisted.
+
 ## Security boundary
 
 The React client exchanges a username and password only with Spring Boot. Spring Security
@@ -171,6 +181,7 @@ Role policy is deliberately small:
 | --- | --- | --- |
 | Read tickets and summary | Yes | Yes |
 | Read model metadata | Yes | Yes |
+| Ask cited knowledge questions | Yes | Yes |
 | Create tickets and change status | No | Yes |
 | Call direct `/predict` diagnostic | No | Yes |
 

@@ -1,0 +1,74 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from serviceops_ai.knowledge import KnowledgeBase
+
+ROOT = Path(__file__).parents[1]
+KNOWLEDGE_PATH = ROOT / "knowledge"
+EVALUATION_PATH = ROOT / "data" / "rag_evaluation.json"
+
+
+@pytest.fixture(scope="module")
+def knowledge_base() -> KnowledgeBase:
+    return KnowledgeBase(KNOWLEDGE_PATH)
+
+
+def test_builds_reproducible_index(knowledge_base: KnowledgeBase) -> None:
+    rebuilt = KnowledgeBase(KNOWLEDGE_PATH)
+
+    assert knowledge_base.document_count == 6
+    assert len(knowledge_base.chunks) == 18
+    assert knowledge_base.index_version == rebuilt.index_version
+    assert knowledge_base.index_version.startswith("tfidf-extractive-1-")
+
+
+def test_answer_is_grounded_and_every_claim_has_a_citation(
+    knowledge_base: KnowledgeBase,
+) -> None:
+    result = knowledge_base.ask(
+        "What should I capture and do when multiple customers receive HTTP 500 errors?"
+    )
+
+    assert result.grounded is True
+    assert 1 <= len(result.citations) <= 3
+    assert result.citations[0].document_id == "technical-api-errors"
+    assert all(citation.excerpt for citation in result.citations)
+    assert all(citation.source_path.startswith("knowledge/") for citation in result.citations)
+    for position in range(1, len(result.citations) + 1):
+        assert f"[{position}]" in result.answer
+
+
+def test_abstains_when_the_knowledge_base_has_no_support(
+    knowledge_base: KnowledgeBase,
+) -> None:
+    result = knowledge_base.ask("What is served in the office cafeteria today?")
+
+    assert result.grounded is False
+    assert result.citations == ()
+    assert "human operator" in result.answer
+
+
+def test_curated_retrieval_evaluation(knowledge_base: KnowledgeBase) -> None:
+    evaluation = json.loads(EVALUATION_PATH.read_text(encoding="utf-8"))
+    correct = 0
+    for example in evaluation["answerable"]:
+        result = knowledge_base.ask(example["question"])
+        retrieved = {citation.document_id for citation in result.citations}
+        correct += example["expectedDocument"] in retrieved
+        assert result.grounded is True
+
+    for question in evaluation["unanswerable"]:
+        result = knowledge_base.ask(question)
+        assert result.grounded is False
+        assert result.citations == ()
+
+    assert correct / len(evaluation["answerable"]) >= 0.9
+
+
+def test_rejects_malformed_knowledge_document(tmp_path: Path) -> None:
+    (tmp_path / "invalid.md").write_text("# Missing metadata\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must start with metadata"):
+        KnowledgeBase(tmp_path)

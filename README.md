@@ -6,6 +6,8 @@ React, Spring Boot, PostgreSQL, Kafka, FastAPI, and a real scikit-learn model in
 locally reproducible system. Persisted BCrypt accounts and short-lived signed tokens protect
 the operator workflow with read-only and mutating roles. Immutable lifecycle history, tested
 dbt marts, and a Power BI semantic model provide reproducible service-performance analytics.
+A citation-enforced knowledge assistant retrieves operational guidance from versioned local
+runbooks and abstains when those sources do not support an answer.
 
 > Project status: **Baseline complete - active development**
 
@@ -60,6 +62,21 @@ deterministic 100,000-event fixture feeds dbt models for SLA compliance, backlog
 response time, MTTR, reopen rate, and category trends. Normal application startup never
 loads this analytical fixture.
 
+## Grounded knowledge assistant
+
+The operator and viewer workspaces include an authenticated knowledge assistant for access,
+billing, delivery, API, performance, and incident procedures. FastAPI loads six
+source-controlled Markdown runbooks, splits them into 18 heading-aware chunks, and builds a
+reproducible TF-IDF index at startup. Retrieval combines content and title relevance with a
+lexical-support gate. A deterministic extractive generator selects only sentences from the
+retrieved chunks and adds a numbered citation to every answer item.
+
+Unsupported questions return an explicit human-review response with no citations; the
+assistant does not use general model knowledge to fill gaps. The fixed evaluation set covers
+12 answerable questions and 4 unrelated questions. This is a deliberately small, local RAG
+baseline: it has no external LLM dependency, vector database, web search, conversation memory,
+or automatic document ingestion.
+
 ## Technology choices
 
 | Component | Role |
@@ -71,6 +88,7 @@ loads this analytical fixture.
 | PostgreSQL 17 | Durable ticket, transactional outbox, and consumer-idempotency data |
 | Redpanda | Pinned local Kafka-protocol broker with three versioned topics |
 | FastAPI, scikit-learn, pandas | HTTP model inspection plus asynchronous ticket inference |
+| TF-IDF retrieval, versioned Markdown runbooks | Deterministic grounded answers with per-claim citations and abstention |
 | dbt Core, dbt-postgres | Tested PostgreSQL lifecycle, SLA-performance, calendar, and daily trend marts |
 | Power BI TMDL | Source-controlled semantic model and operational DAX measures |
 | Docker Compose | Health-gated local topology for all five services |
@@ -94,6 +112,7 @@ ignored by Git. Open:
 - Spring health: <http://localhost:8080/actuator/health>
 - FastAPI OpenAPI: <http://localhost:8000/docs>
 - Model metadata: <http://localhost:8000/model-info>
+- Knowledge API: <http://localhost:8000/docs> (`POST /knowledge/ask`)
 
 Sign in to the UI with one of the known local-development accounts:
 
@@ -161,6 +180,7 @@ environment overrides, migrated-history semantics, and Power BI model usage.
 6. Spring validates and persists the idempotent prediction.
 7. The UI poll updates the row and detail panel with category, priority, and confidence.
 8. Change the status from the detail panel to verify the command path.
+9. Ask the knowledge assistant how to triage repeated API errors and inspect its citations.
 
 The standard-library smoke test automates the same public API flow:
 
@@ -235,11 +255,13 @@ dbt build --project-dir dbt --profiles-dir dbt
 - `POST /predict`
 - `GET /health`
 - `GET /model-info`
+- `POST /knowledge/ask` (direct AI-service route)
+- `POST /assistant/ask` (same-origin frontend proxy used by the UI)
 
 Health and OpenAPI endpoints remain public for container orchestration and API discovery.
 All business endpoints require a signed bearer token. `VIEWER` can read tickets, summary,
-and model metadata; `OPERATOR` additionally creates tickets, changes status, and calls the
-direct model prediction endpoint.
+model metadata, and cited knowledge answers; `OPERATOR` additionally creates tickets,
+changes status, and calls the direct model prediction endpoint.
 
 JSON Schema contracts live in [`contracts`](contracts). Invalid consumer messages are
 sent to `serviceops.ticket.invalid.v1`, and consumers use bounded retries or explicit
@@ -256,14 +278,14 @@ invalid-message handling.
 
 ## Verified baseline
 
-The latest local regression on 4 August 2026 measured:
+The latest local regression on 5 August 2026 measured:
 
 - Java: 32 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
   locking through Testcontainers.
-- Python: Ruff passed and 16 pytest tests passed, including shared JWT validation and
-  Event Hubs Kafka profile validation.
-- Frontend: ESLint passed, 17 Vitest tests passed, TypeScript compiled, and the Vite
+- Python: Ruff passed and 23 pytest tests passed, including shared JWT validation, RAG
+  retrieval/abstention evaluation, and Event Hubs Kafka profile validation.
+- Frontend: ESLint passed, 19 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
 - Analytics: Ruff passed and 4 pytest tests passed; the fixed fixture generated 40,000
   tickets and exactly 100,000 lifecycle events; dbt built 6 models and passed all 52 data
@@ -273,8 +295,9 @@ The latest local regression on 4 August 2026 measured:
 - Compose: configuration validation passed; all four images built; PostgreSQL, Redpanda,
   Spring Boot, FastAPI, and React/Nginx reported healthy; the opt-in analytics image loaded
   the full fixture and completed its own green `dbt build`.
-- End to end: the authenticated smoke test passed from a clean application volume, and its
-  runtime ticket retained ordered `CREATED` and `STATUS_CHANGED` lifecycle rows.
+- End to end: the authenticated smoke test passed from a clean application volume, including
+  a cited RAG answer and unrelated-question abstention through Nginx; its runtime ticket
+  retained ordered `CREATED` and `STATUS_CHANGED` lifecycle rows.
 - Authentication: anonymous access returned `401`; the viewer could read but received
   `403` for Spring and FastAPI mutations; the operator token worked across both services;
   bootstrap passwords were stored as BCrypt hashes.
@@ -283,8 +306,9 @@ The latest local regression on 4 August 2026 measured:
   preserved a ticket, the persisted model hash survived an AI-service restart, and an
   outbox event created during a Kafka outage was delivered after both broker recovery and
   a backend process restart.
-- Browser: ticket creation, prediction polling, accessible detail display, and status
-  update passed through the real rendered application with no browser console errors.
+- Browser: the grounded answer and two source cards rendered through the real application;
+  ticket creation, prediction polling, accessible detail display, and status update remained
+  available with no browser console warnings or errors.
 - Azure deployment: Terraform 1.15.8 formatting and AzureRM 4.81.0 schema validation
   passed; the credential-free mocked plan test verified the network/ingress/identity
   boundaries; actionlint passed for both workflows; and the cloud-style smoke script passed
@@ -296,7 +320,11 @@ The latest local regression on 4 August 2026 measured:
 ## Current limitations
 
 - The synthetic model dataset is deliberately small and non-production.
-- RAG, observability, and Kubernetes remain roadmap work and are not represented as complete.
+- Observability and Kubernetes remain roadmap work and are not represented as complete.
+- The bundled knowledge base is intentionally small and manually curated. The RAG baseline
+  uses deterministic extractive generation rather than a general-purpose LLM; automatic
+  ingestion, conversation memory, human approval, and broader prompt-safety evaluation remain
+  roadmap work.
 - The Power BI semantic model and measures are source controlled, but cross-platform CI does
   not claim a Desktop/Fabric refresh or a published dashboard. Operational SLA enforcement,
   escalation, and ownership workflows remain separate roadmap work.

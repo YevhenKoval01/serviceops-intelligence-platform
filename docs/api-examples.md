@@ -122,6 +122,42 @@ curl --fail-with-body \
 The exact label and confidence depend on the bundled baseline dataset. `/model-info`
 reports the model version, row count, and held-out validation scores.
 
+## Ask the knowledge assistant
+
+Both roles can ask a question. The UI calls the same-origin `/assistant/ask` proxy; direct
+AI-service clients can use `/knowledge/ask` with the same body and token.
+
+```bash
+curl --fail-with-body \
+  --request POST http://localhost:3000/assistant/ask \
+  --header "Authorization: Bearer $TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{"question":"How should I investigate repeated HTTP 500 API errors?"}'
+```
+
+```json
+{
+  "answer": "The ServiceOps knowledge base recommends:\n- Record the affected endpoint and one correlation identifier. [1]",
+  "grounded": true,
+  "citations": [
+    {
+      "documentId": "technical-api-errors",
+      "title": "API error triage",
+      "section": "Establish impact",
+      "revision": "2026-08-05",
+      "sourcePath": "knowledge/technical-api-errors.md",
+      "excerpt": "Record the affected endpoint, region, first observed time in UTC, HTTP status, request correlation identifier, and whether retries succeed.",
+      "relevance": 0.42
+    }
+  ],
+  "indexVersion": "tfidf-extractive-1-<content-digest>"
+}
+```
+
+When no source supports the question, `grounded` is `false`, `citations` is empty, and the
+answer directs the user to human review. Clients must not treat an abstention as operational
+guidance.
+
 ## Health
 
 ```bash
@@ -133,5 +169,6 @@ curl --fail-with-body http://localhost:3000/health
 Backend health includes database and Kafka connectivity. AI health returns `503` unless
 the model is loaded and its Kafka worker has connected to broker metadata.
 
-Health and OpenAPI documents are intentionally public. `/api/**`, `/predict`, and
-`/model-info` enforce authentication as described above.
+Health and OpenAPI documents are intentionally public. `/api/**`, `/predict`,
+`/model-info`, `/knowledge/ask`, and `/assistant/ask` enforce authentication as described
+above.

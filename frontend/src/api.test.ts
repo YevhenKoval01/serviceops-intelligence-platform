@@ -1,6 +1,6 @@
 import { afterEach, vi } from "vitest";
 
-import { ApiError, listTickets } from "./api";
+import { ApiError, askKnowledge, listTickets } from "./api";
 import { clearSession, loadSession, storeSession } from "./auth";
 
 afterEach(() => {
@@ -97,4 +97,37 @@ test("discards a stored session with an invalid expiration", () => {
   });
 
   expect(loadSession()).toBeNull();
+});
+
+test("sends knowledge questions through the authenticated same-origin route", async () => {
+  storeSession({
+    accessToken: "signed-token",
+    tokenType: "Bearer",
+    expiresIn: 900,
+    expiresAt: "2099-08-01T10:15:00Z",
+    user: { username: "viewer", role: "VIEWER" },
+  });
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        answer: "Grounded answer [1]",
+        grounded: true,
+        citations: [],
+        indexVersion: "tfidf-extractive-1-abc123",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  await askKnowledge("How should I triage an API error?");
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/assistant/ask",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ question: "How should I triage an API error?" }),
+      headers: expect.objectContaining({ Authorization: "Bearer signed-token" }),
+    }),
+  );
 });

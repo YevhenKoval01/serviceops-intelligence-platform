@@ -324,7 +324,8 @@ h1 {
 }
 
 .create-panel,
-.queue-panel {
+.queue-panel,
+.knowledge-panel {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -334,6 +335,111 @@ h1 {
 .create-panel {
   margin-bottom: 24px;
   padding: 28px;
+}
+
+.knowledge-panel {
+  margin-bottom: 24px;
+  padding: 28px;
+}
+
+.knowledge-panel > .section-heading {
+  margin-bottom: 12px;
+}
+
+.citation-note {
+  padding: 7px 10px;
+  color: var(--green);
+  background: var(--green-soft);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.knowledge-intro {
+  max-width: 760px;
+  margin-bottom: 20px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.knowledge-panel form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+}
+
+.knowledge-panel textarea {
+  min-height: 82px;
+}
+
+.knowledge-panel form .primary-button {
+  margin-bottom: 19px;
+}
+
+.knowledge-message,
+.knowledge-result {
+  margin-top: 20px;
+}
+
+.knowledge-result {
+  padding: 20px;
+  background: #f2f6f3;
+  border: 1px solid #d5e1da;
+  border-radius: 12px;
+}
+
+.knowledge-result > h3,
+.knowledge-sources h3 {
+  margin-bottom: 10px;
+  color: var(--green);
+  font-size: 14px;
+}
+
+.knowledge-answer {
+  margin-bottom: 0;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.knowledge-abstention {
+  background: var(--amber-soft);
+  border-color: #e5ca90;
+}
+
+.knowledge-sources {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.knowledge-sources ol {
+  display: grid;
+  gap: 12px;
+  padding-left: 24px;
+  margin: 0;
+}
+
+.knowledge-sources li {
+  padding-left: 5px;
+}
+
+.knowledge-sources strong,
+.knowledge-sources span {
+  display: block;
+}
+
+.knowledge-sources span {
+  margin: 3px 0 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.knowledge-sources p {
+  margin-bottom: 0;
+  color: #4b5750;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .read-only-panel {
@@ -849,6 +955,15 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
+  .knowledge-panel form {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-panel form .primary-button {
+    width: 100%;
+    margin-bottom: 0;
+  }
+
   .form-actions {
     align-items: stretch;
     flex-direction: column;
@@ -859,6 +974,10 @@ tbody tr:last-child td {
   }
 
   .async-note {
+    display: none;
+  }
+
+  .citation-note {
     display: none;
   }
 

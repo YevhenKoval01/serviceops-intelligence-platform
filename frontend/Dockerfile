@@ -9,7 +9,10 @@ FROM nginx:1.27.5-alpine
 ENV BACKEND_SCHEME=http \
     BACKEND_HOST=backend \
     BACKEND_PORT=8080 \
-    NGINX_ENVSUBST_FILTER="^(BACKEND_SCHEME|BACKEND_HOST|BACKEND_PORT)$"
+    AI_SCHEME=http \
+    AI_HOST=ai-service \
+    AI_PORT=8000 \
+    NGINX_ENVSUBST_FILTER="^(BACKEND_SCHEME|BACKEND_HOST|BACKEND_PORT|AI_SCHEME|AI_HOST|AI_PORT)$"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

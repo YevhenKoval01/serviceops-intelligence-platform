@@ -70,6 +70,16 @@ def main() -> None:
     assert isinstance(login, dict)
     token = str(login["accessToken"])
 
+    knowledge = request(
+        "/assistant/ask",
+        method="POST",
+        payload={"question": "What should I capture for repeated HTTP 500 API errors?"},
+        token=token,
+    )
+    assert isinstance(knowledge, dict)
+    assert knowledge["grounded"] is True
+    assert knowledge["citations"][0]["documentId"] == "technical-api-errors"
+
     suffix = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     ticket = request(
         "/api/tickets",

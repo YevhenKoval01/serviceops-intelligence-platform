@@ -12,6 +12,7 @@ vi.mock("./api", () => ({
   getTicket: vi.fn(),
   createTicket: vi.fn(),
   updateTicketStatus: vi.fn(),
+  askKnowledge: vi.fn(),
   login: vi.fn(),
 }));
 

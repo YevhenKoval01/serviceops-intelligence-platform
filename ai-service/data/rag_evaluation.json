@@ -1,0 +1,58 @@
+{
+  "answerable": [
+    {
+      "question": "What should I do when an account is locked after repeated failed sign-ins?",
+      "expectedDocument": "access-account-lockout"
+    },
+    {
+      "question": "Which evidence should be preserved if a user denies the login attempts?",
+      "expectedDocument": "access-account-lockout"
+    },
+    {
+      "question": "How do I distinguish a duplicate settled payment from an authorization hold?",
+      "expectedDocument": "billing-duplicate-charge"
+    },
+    {
+      "question": "When should duplicate customer charges be escalated to payments engineering?",
+      "expectedDocument": "billing-duplicate-charge"
+    },
+    {
+      "question": "A parcel has not moved for two business days after carrier acceptance. What next?",
+      "expectedDocument": "delivery-delayed-order"
+    },
+    {
+      "question": "What shipment information should I gather for a delayed order?",
+      "expectedDocument": "delivery-delayed-order"
+    },
+    {
+      "question": "What diagnostics should I capture for repeated HTTP 500 API errors?",
+      "expectedDocument": "technical-api-errors"
+    },
+    {
+      "question": "How should an operator react to an API Retry-After response?",
+      "expectedDocument": "technical-api-errors"
+    },
+    {
+      "question": "Which measurements are useful when a customer workflow is slow?",
+      "expectedDocument": "technical-performance-degradation"
+    },
+    {
+      "question": "When does latency degradation require escalation?",
+      "expectedDocument": "technical-performance-degradation"
+    },
+    {
+      "question": "What belongs in the first customer incident update?",
+      "expectedDocument": "incident-communications"
+    },
+    {
+      "question": "Should we publish an incident update when there is no material change?",
+      "expectedDocument": "incident-communications"
+    }
+  ],
+  "unanswerable": [
+    "What meals are available in the office cafeteria today?",
+    "Who won the football match last night?",
+    "What is the capital of a country not mentioned in these runbooks?",
+    "Write a marketing slogan for a new bicycle."
+  ]
+}

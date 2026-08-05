@@ -37,6 +37,16 @@ run "demo_topology" {
   }
 
   assert {
+    condition     = azurerm_container_app.ai.ingress[0].external_enabled == false
+    error_message = "The RAG and prediction service ingress must remain internal."
+  }
+
+  assert {
+    condition     = contains([for env in azurerm_container_app.frontend.template[0].container[0].env : env.name], "AI_HOST")
+    error_message = "The frontend proxy must receive the internal AI service hostname."
+  }
+
+  assert {
     condition     = azurerm_container_registry.main.admin_enabled == false
     error_message = "ACR administrator credentials must remain disabled."
   }

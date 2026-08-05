@@ -156,6 +156,9 @@ def main() -> int:
         "status": "UP",
         "modelLoaded": True,
         "kafkaWorkerRunning": True,
+        "knowledgeBaseReady": True,
+        "knowledgeDocuments": 6,
+        "knowledgeChunks": 18,
     }
     with urllib.request.urlopen(FRONTEND, timeout=5) as response:
         frontend_html = response.read().decode("utf-8")
@@ -177,6 +180,26 @@ def main() -> int:
     model_info = request(f"{AI_SERVICE}/model-info", headers=viewer_headers)
     assert model_info["modelVersion"] == "baseline-1"
     print("Authentication and role-based access checks passed.")
+
+    knowledge_answer = request(
+        f"{FRONTEND}/assistant/ask",
+        method="POST",
+        payload={"question": "How should I investigate repeated HTTP 500 API errors?"},
+        headers=viewer_headers,
+    )
+    assert knowledge_answer["grounded"] is True
+    assert knowledge_answer["citations"]
+    assert knowledge_answer["citations"][0]["documentId"] == "technical-api-errors"
+    assert "[1]" in knowledge_answer["answer"]
+    unsupported_answer = request(
+        f"{FRONTEND}/assistant/ask",
+        method="POST",
+        payload={"question": "What is served in the office cafeteria today?"},
+        headers=viewer_headers,
+    )
+    assert unsupported_answer["grounded"] is False
+    assert unsupported_answer["citations"] == []
+    print("Citation-grounded retrieval and unsupported-question abstention passed.")
 
     assert_problem_details(operator_headers)
     summary_before = request(f"{BACKEND}/api/summary", headers=operator_headers)

@@ -238,6 +238,18 @@ resource "azurerm_container_app" "ai" {
     }
   }
 
+  ingress {
+    external_enabled           = false
+    allow_insecure_connections = false
+    target_port                = 8000
+    transport                  = "auto"
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
   depends_on = [
     azurerm_eventhub.topics,
     azurerm_role_assignment.container_pull,
@@ -284,6 +296,21 @@ resource "azurerm_container_app" "frontend" {
 
       env {
         name  = "BACKEND_PORT"
+        value = "443"
+      }
+
+      env {
+        name  = "AI_SCHEME"
+        value = "https"
+      }
+
+      env {
+        name  = "AI_HOST"
+        value = azurerm_container_app.ai.latest_revision_fqdn
+      }
+
+      env {
+        name  = "AI_PORT"
         value = "443"
       }
 

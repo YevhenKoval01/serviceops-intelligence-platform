@@ -3,6 +3,7 @@ import type {
   AuthenticatedUser,
   CreateTicketInput,
   LoginResponse,
+  KnowledgeAnswer,
   Ticket,
   TicketStatus,
 } from "./types";
@@ -80,5 +81,12 @@ export function updateTicketStatus(id: string, status: TicketStatus): Promise<Ti
   return request<Ticket>(`/api/tickets/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+export function askKnowledge(question: string): Promise<KnowledgeAnswer> {
+  return request<KnowledgeAnswer>("/assistant/ask", {
+    method: "POST",
+    body: JSON.stringify({ question }),
   });
 }

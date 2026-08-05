@@ -54,6 +54,9 @@ class HealthResponse(BaseModel):
                     "status": "UP",
                     "modelLoaded": True,
                     "kafkaWorkerRunning": True,
+                    "knowledgeBaseReady": True,
+                    "knowledgeDocuments": 6,
+                    "knowledgeChunks": 18,
                 }
             ]
         }
@@ -62,6 +65,9 @@ class HealthResponse(BaseModel):
     status: Literal["UP"]
     modelLoaded: bool
     kafkaWorkerRunning: bool
+    knowledgeBaseReady: bool
+    knowledgeDocuments: int = Field(ge=1)
+    knowledgeChunks: int = Field(ge=1)
 
 
 class ModelInfoResponse(BaseModel):
@@ -89,3 +95,26 @@ class ModelInfoResponse(BaseModel):
     trainingRows: int
     validationAccuracy: dict[str, float]
     dataset: str
+
+
+class KnowledgeQuestionRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    question: str = Field(min_length=5, max_length=500)
+
+
+class KnowledgeCitationResponse(BaseModel):
+    documentId: str
+    title: str
+    section: str
+    revision: str
+    sourcePath: str
+    excerpt: str
+    relevance: float = Field(ge=0.0, le=1.0)
+
+
+class KnowledgeAnswerResponse(BaseModel):
+    answer: str
+    grounded: bool
+    citations: list[KnowledgeCitationResponse]
+    indexVersion: str

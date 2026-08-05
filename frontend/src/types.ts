@@ -41,3 +41,20 @@ export interface CreateTicketInput {
   description: string;
   reportedPriority: Priority | null;
 }
+
+export interface KnowledgeCitation {
+  documentId: string;
+  title: string;
+  section: string;
+  revision: string;
+  sourcePath: string;
+  excerpt: string;
+  relevance: number;
+}
+
+export interface KnowledgeAnswer {
+  answer: string;
+  grounded: boolean;
+  citations: KnowledgeCitation[];
+  indexVersion: string;
+}

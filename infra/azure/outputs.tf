@@ -23,6 +23,11 @@ output "backend_internal_fqdn" {
   value       = azurerm_container_app.backend.latest_revision_fqdn
 }
 
+output "ai_internal_fqdn" {
+  description = "Container Apps internal ingress hostname for the AI service."
+  value       = azurerm_container_app.ai.latest_revision_fqdn
+}
+
 output "eventhubs_namespace" {
   description = "Event Hubs namespace providing the Kafka-compatible endpoint."
   value       = azurerm_eventhub_namespace.main.name

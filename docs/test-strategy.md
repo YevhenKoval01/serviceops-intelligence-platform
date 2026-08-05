@@ -10,9 +10,9 @@ Compose smoke test proves the real cross-service flow.
 | --- | --- |
 | Java unit and web slice | Login exchange, anonymous `401`, viewer `403`, request normalization and validation, RFC 7807 errors, transactional outbox state and retries, acknowledged Kafka delivery, prediction contract validation and idempotency, structured dead-letter records |
 | Java repository integration | Real PostgreSQL 17 container, Flyway schema validation through V4, BCrypt account record, JPA ticket and lifecycle persistence, JSONB outbox persistence, due-event locking, query ordering |
-| Python unit/API | Shared JWT signature/claim validation, role denial, dataset schema, deterministic training, response constraints, trimmed input validation, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
-| Frontend component/API | Sign-in/session handling, bearer headers, expiry cleanup, viewer UI, form validation and failures, queue and empty states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
-| Compose smoke | Five health checks, real sign-in, anonymous rejection, viewer/operator policy, shared Spring/FastAPI token, frontend asset, invalid API request, ticket persistence, both Kafka topics, ML result, queue listing, status update, summary totals |
+| Python unit/API | Shared JWT validation, role denial, deterministic training, RAG parsing/index versioning, citation binding, fixed retrieval quality, abstention, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
+| Frontend component/API | Sign-in/session handling, bearer headers, viewer UI, knowledge answer/citation rendering, form validation and failures, queue states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
+| Compose smoke | Five health checks, real sign-in, role policy, shared Spring/FastAPI token, cited RAG answer and abstention through Nginx, invalid API request, ticket persistence, both Kafka topics, ML result, status update, summary totals |
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
 | Terraform | Formatting, AzureRM schema validation, and a credential-free mocked plan asserting private PostgreSQL, ingress boundaries, managed ACR access, all event hubs, and a continuously running prediction worker |
 | Azure deployment smoke | Manual workflow OIDC login, ACR remote builds, Terraform plan/apply, frontend health, authenticated ticket creation, Event Hubs round trip, and eventual ML classification |
@@ -107,6 +107,8 @@ Before the final baseline commit:
     green `dbt build`, including all source, generic, and singular tests.
 12. Validate that the Power BI semantic model references the tested marts and contains all
     six required business measures without embedded credentials.
+13. Run the fixed RAG evaluation, require at least 90% retrieval recall within the top three,
+    require every unrelated question to abstain, and exercise a cited answer through Nginx.
 
 GitHub Actions mirrors the language and Terraform commands and builds every Compose image
 after all quality jobs pass. Pull requests require no repository secrets. Azure deploy and

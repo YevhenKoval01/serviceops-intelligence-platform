@@ -1,10 +1,10 @@
 # Azure deployment
 
 This Terraform root deploys the complete ServiceOps runtime to Azure without adding any
-analytics, RAG, observability, or Kubernetes components. It creates:
+managed analytics, observability, or Kubernetes components. It creates:
 
 - a workload-profile Azure Container Apps environment integrated with a dedicated VNet;
-- public HTTPS ingress for the React/Nginx frontend and internal ingress for Spring Boot;
+- public HTTPS ingress for React/Nginx and internal ingress for Spring Boot and FastAPI;
 - one always-running Spring replica and one always-running Kafka prediction worker;
 - Azure Database for PostgreSQL Flexible Server on a delegated private subnet;
 - a Standard Event Hubs namespace with three pre-created Kafka-compatible event hubs;
@@ -93,8 +93,9 @@ terraform -chdir=infra/azure validate
 terraform -chdir=infra/azure test
 ```
 
-The mocked plan test asserts private PostgreSQL, internal backend ingress, public frontend
-ingress, disabled ACR administrator credentials, three event hubs, and a non-zero AI worker.
+The mocked plan test asserts private PostgreSQL, internal backend and AI ingress, the
+frontend-to-AI RAG proxy target, public frontend ingress, disabled ACR administrator
+credentials, three event hubs, and a non-zero AI worker.
 An actual plan/apply still requires Azure credentials, remote backend settings, and images
 already available in ACR; the workflow owns that bootstrap sequence.
 
@@ -105,9 +106,11 @@ three event hubs and the cloud backend sets `SERVICEOPS_TOPICS_MANAGE=false`. Sp
 Python receive the required `SASL_SSL`/`PLAIN` connection settings and Event Hubs-specific
 timeouts. Local Compose keeps its original plaintext Redpanda behavior.
 
-The frontend image uses Nginx's startup template support. Compose injects
-`http://backend:8080`, while Azure injects the backend's internal Container Apps HTTPS
-hostname. Only the frontend receives public ingress.
+The frontend image uses Nginx's startup template support. Compose injects the local backend
+and AI service names, while Azure injects both internal Container Apps HTTPS hostnames.
+`/api/` routes to Spring and `/assistant/` routes to FastAPI. Only the frontend receives
+public ingress; the AI service's internal ingress exists for authenticated RAG requests and
+does not expose the Kafka worker publicly.
 
 Reference documentation:
 
