@@ -8,6 +8,8 @@ the operator workflow with read-only and mutating roles. Immutable lifecycle his
 dbt marts, and a Power BI semantic model provide reproducible service-performance analytics.
 A citation-enforced knowledge assistant retrieves operational guidance from versioned local
 runbooks and abstains when those sources do not support an answer.
+An opt-in OpenTelemetry pipeline correlates metrics, logs, and distributed traces across
+HTTP, PostgreSQL, and Kafka, with provisioned SLO dashboards and tested alert delivery.
 
 > Project status: **Baseline complete - active development**
 
@@ -94,6 +96,8 @@ or automatic document ingestion.
 | Docker Compose | Health-gated local topology for all five services |
 | Azure Container Apps, PostgreSQL, Event Hubs, ACR | Terraform-managed cloud runtime with private data and public frontend ingress |
 | GitHub Actions | Independent Java, Python, frontend, Terraform, container image, and manual Azure deployment jobs |
+| OpenTelemetry Java/Python + Collector | Portable OTLP instrumentation, W3C context propagation, and trace-derived RED metrics |
+| Prometheus, Alertmanager, Grafana, Loki, Tempo | SLO records, error budgets, alert routing, dashboards, logs, and traces |
 
 ## Run locally
 
@@ -134,6 +138,28 @@ Delete all local application data only when explicitly desired:
 ```bash
 docker compose down --volumes
 ```
+
+## Observe locally
+
+Observability is opt-in so normal application startup stays lightweight:
+
+```bash
+docker compose \
+  -f compose.yaml \
+  -f compose.observability.yaml \
+  up --build --detach --wait
+python scripts/smoke_test.py
+python scripts/observability_smoke_test.py
+```
+
+Open the provisioned dashboard at <http://localhost:3001/d/serviceops-overview> with
+`admin` / `serviceops_observe_2026`. Prometheus scrapes bounded application SLI metrics while
+Spring and FastAPI export OTLP logs and traces; the Collector also derives RED metrics from
+spans. W3C trace context crosses HTTP and Kafka (with a producer-to-consumer span link),
+traces link to logs, rolling 30-day availability and latency objectives are recorded, and
+checked alerts route through Alertmanager. The deterministic drill additionally proves
+firing and resolved notifications. See the [observability guide](observability/README.md) and
+[response runbook](docs/observability-runbook.md).
 
 ## Deploy to Azure
 
@@ -252,9 +278,11 @@ dbt build --project-dir dbt --profiles-dir dbt
 - `PATCH /api/tickets/{id}/status`
 - `GET /api/summary`
 - `GET /actuator/health`
+- `GET /actuator/prometheus`
 - `POST /predict`
 - `GET /health`
 - `GET /model-info`
+- `GET /metrics`
 - `POST /knowledge/ask` (direct AI-service route)
 - `POST /assistant/ask` (same-origin frontend proxy used by the UI)
 
@@ -275,15 +303,17 @@ invalid-message handling.
 - [Phased roadmap](docs/roadmap.md)
 - [Azure deployment and teardown](infra/azure/README.md)
 - [Analytics pipeline, metrics, and Power BI model](analytics/README.md)
+- [Observability stack, objectives, and validation](observability/README.md)
+- [Observability response runbook](docs/observability-runbook.md)
 
 ## Verified baseline
 
-The latest local regression on 5 August 2026 measured:
+The latest local regression on 6 August 2026 measured:
 
-- Java: 32 tests passed, including Spring Security role enforcement, PostgreSQL 17,
+- Java: 34 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
   locking through Testcontainers.
-- Python: Ruff passed and 23 pytest tests passed, including shared JWT validation, RAG
+- Python: Ruff passed and 24 pytest tests passed, including shared JWT validation, RAG
   retrieval/abstention evaluation, and Event Hubs Kafka profile validation.
 - Frontend: ESLint passed, 19 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
@@ -295,6 +325,12 @@ The latest local regression on 5 August 2026 measured:
 - Compose: configuration validation passed; all four images built; PostgreSQL, Redpanda,
   Spring Boot, FastAPI, and React/Nginx reported healthy; the opt-in analytics image loaded
   the full fixture and completed its own green `dbt build`.
+- Observability: all 12 long-running services reported healthy and the non-root data-volume
+  initializer exited successfully; all seven Prometheus scrape targets were up, 17 checked
+  recording/alerting rules loaded, and the fixed rule tests passed. The runtime smoke test
+  proved both applications' SLI and trace-derived metrics, OTLP logs and traces, the Kafka
+  producer-to-consumer span link, provisioned Grafana assets, firing webhook delivery,
+  recovery, and resolved delivery.
 - End to end: the authenticated smoke test passed from a clean application volume, including
   a cited RAG answer and unrelated-question abstention through Nginx; its runtime ticket
   retained ordered `CREATED` and `STATUS_CHANGED` lifecycle rows.
@@ -320,7 +356,11 @@ The latest local regression on 5 August 2026 measured:
 ## Current limitations
 
 - The synthetic model dataset is deliberately small and non-production.
-- Observability and Kubernetes remain roadmap work and are not represented as complete.
+- Kubernetes remains roadmap work and is not represented as complete.
+- The checked observability topology is single-node and validated locally, not a claim of a
+  highly available or capacity-tested telemetry control plane. Production use requires an
+  approved external alert receiver, protected access, replicated durable storage, and an
+  environment-specific retention/capacity plan.
 - The bundled knowledge base is intentionally small and manually curated. The RAG baseline
   uses deterministic extractive generation rather than a general-purpose LLM; automatic
   ingestion, conversation memory, human approval, and broader prompt-safety evaluation remain

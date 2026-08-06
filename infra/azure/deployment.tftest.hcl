@@ -55,4 +55,39 @@ run "demo_topology" {
     condition     = azurerm_container_app.ai.template[0].min_replicas == 1
     error_message = "The Kafka prediction worker must not scale to zero."
   }
+
+  assert {
+    condition = one([
+      for env in azurerm_container_app.backend.template[0].container[0].env : env.value
+      if env.name == "OTEL_SDK_DISABLED"
+    ]) == "true"
+    error_message = "Telemetry export must be disabled unless an external OTLP endpoint is explicitly configured."
+  }
+}
+
+run "external_telemetry_export" {
+  command = plan
+
+  variables {
+    image_tag                   = "0123456789abcdef"
+    otel_exporter_otlp_endpoint = "https://telemetry.example.com/otlp"
+    otel_exporter_otlp_headers  = "Authorization=Bearer example-test-token"
+    otel_traces_sampler_arg     = 0.25
+  }
+
+  assert {
+    condition = one([
+      for env in azurerm_container_app.backend.template[0].container[0].env : env.value
+      if env.name == "OTEL_SDK_DISABLED"
+    ]) == "false"
+    error_message = "Providing an OTLP endpoint must enable backend telemetry export."
+  }
+
+  assert {
+    condition = contains(
+      [for env in azurerm_container_app.ai.template[0].container[0].env : env.name],
+      "OTEL_EXPORTER_OTLP_HEADERS",
+    )
+    error_message = "Optional OTLP authorization headers must be injected through a Container Apps secret."
+  }
 }

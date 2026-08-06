@@ -63,14 +63,22 @@ Analytical SLA thresholds are reporting assumptions, not an operational deadline
 notification, assignment, or escalation engine. Power BI publishing and scheduled refresh
 require an explicitly configured Desktop/Fabric environment.
 
-## Phase 2: observability
+## Delivered: observability
 
-- OpenTelemetry instrumentation and trace context propagation.
-- Production metrics, logs, traces, alerting, and dashboards.
-- SLOs, error budgets, and a tested operational response process.
+- Pinned OpenTelemetry Java and Python instrumentation with W3C context propagation across
+  HTTP, PostgreSQL, and Kafka, routed through an OpenTelemetry Collector.
+- Prometheus metrics/rules, Loki logs, Tempo traces, Alertmanager routing, and a provisioned
+  Grafana dashboard with metrics/logs/traces correlation.
+- Rolling 30-day availability and latency objectives, explicit error budgets, checked burn
+  alerts, a response runbook, and a deterministic firing/resolution notification drill.
+
+The source-controlled overlay is a single-node validation topology, not a highly available
+telemetry backend. Application instrumentation is portable: Azure can export to an explicitly
+configured HTTPS OTLP endpoint, while access control, replicated storage, capacity, retention,
+and the human notification provider remain deployment responsibilities.
 
 Authentication, local role-based access, Azure deployment, analytics, and the cited RAG
-baseline are implemented and verified locally. Observability and Kubernetes remain roadmap
-work, not placeholder integrations. The repository must not be described as observable,
-production-ready, or continuously cloud-hosted until the corresponding work is complete and
+baseline and observability are implemented and verified locally. Kubernetes remains roadmap
+work, not a placeholder integration. The repository must not be described as production-ready,
+highly available, or continuously cloud-hosted until the corresponding work is complete and
 verified in an actual subscription.

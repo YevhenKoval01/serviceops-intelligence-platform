@@ -77,12 +77,15 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
       show-details: never
+  metrics:
+    tags:
+      service_name: ${spring.application.name}
 
 springdoc:
   swagger-ui:

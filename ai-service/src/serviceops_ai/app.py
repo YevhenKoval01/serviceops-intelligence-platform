@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from opentelemetry import trace
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from serviceops_ai.kafka_worker import KafkaPredictionWorker
 from serviceops_ai.knowledge import KnowledgeBase
@@ -36,6 +39,18 @@ KNOWLEDGE_PATH = Path(
 model: ModelBundle | None = None
 worker: KafkaPredictionWorker | None = None
 knowledge_base: KnowledgeBase | None = None
+tracer = trace.get_tracer(__name__)
+HTTP_REQUESTS = Counter(
+    "serviceops_http_requests",
+    "Completed ServiceOps HTTP requests",
+    ("service_name", "method", "route", "status_code"),
+)
+HTTP_DURATION = Histogram(
+    "serviceops_http_request_duration_seconds",
+    "ServiceOps HTTP request duration",
+    ("service_name", "method", "route", "status_code"),
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, float("inf")),
+)
 
 
 @asynccontextmanager
@@ -62,6 +77,30 @@ app = FastAPI(
 )
 
 
+@app.middleware("http")
+async def observe_http_request(request: Request, call_next):
+    if request.url.path in {"/health", "/metrics"}:
+        return await call_next(request)
+
+    started_at = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", "UNKNOWN")
+        labels = (
+            "serviceops-ai-service",
+            request.method,
+            route_path,
+            str(status_code),
+        )
+        HTTP_REQUESTS.labels(*labels).inc()
+        HTTP_DURATION.labels(*labels).observe(time.perf_counter() - started_at)
+
+
 def require_model() -> ModelBundle:
     if model is None:
         raise RuntimeError("Model has not been initialized")
@@ -72,6 +111,11 @@ def require_knowledge_base() -> KnowledgeBase:
     if knowledge_base is None:
         raise RuntimeError("Knowledge base has not been initialized")
     return knowledge_base
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/predict", response_model=PredictionResponse)
@@ -120,22 +164,25 @@ def ask_knowledge(
     request: KnowledgeQuestionRequest,
     _: Annotated[AuthenticatedUser, Depends(viewer_or_operator)],
 ) -> KnowledgeAnswerResponse:
-    current = require_knowledge_base()
-    result = current.ask(request.question)
-    return KnowledgeAnswerResponse(
-        answer=result.answer,
-        grounded=result.grounded,
-        citations=[
-            KnowledgeCitationResponse(
-                documentId=citation.document_id,
-                title=citation.title,
-                section=citation.section,
-                revision=citation.revision,
-                sourcePath=citation.source_path,
-                excerpt=citation.excerpt,
-                relevance=citation.relevance,
-            )
-            for citation in result.citations
-        ],
-        indexVersion=current.index_version,
-    )
+    with tracer.start_as_current_span("serviceops.knowledge.answer") as span:
+        current = require_knowledge_base()
+        result = current.ask(request.question)
+        span.set_attribute("serviceops.rag.grounded", result.grounded)
+        span.set_attribute("serviceops.rag.citation_count", len(result.citations))
+        return KnowledgeAnswerResponse(
+            answer=result.answer,
+            grounded=result.grounded,
+            citations=[
+                KnowledgeCitationResponse(
+                    documentId=citation.document_id,
+                    title=citation.title,
+                    section=citation.section,
+                    revision=citation.revision,
+                    sourcePath=citation.source_path,
+                    excerpt=citation.excerpt,
+                    relevance=citation.relevance,
+                )
+                for citation in result.citations
+            ],
+            indexVersion=current.index_version,
+        )

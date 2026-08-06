@@ -133,3 +133,18 @@ def test_knowledge_assistant_abstains_and_requires_authentication() -> None:
     assert response.status_code == 200
     assert response.json()["grounded"] is False
     assert response.json()["citations"] == []
+
+
+def test_metrics_endpoint_exposes_bounded_http_sli_series() -> None:
+    with TestClient(app) as client:
+        client.get("/health")
+        client.post("/predict", json={})
+        response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "serviceops_http_requests_total" in response.text
+    assert 'service_name="serviceops-ai-service"' in response.text
+    assert 'route="/predict"' in response.text
+    assert 'status_code="401"' in response.text
+    assert 'route="/health"' not in response.text
+    assert 'route="/metrics"' not in response.text

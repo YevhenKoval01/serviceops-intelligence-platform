@@ -1,0 +1,165 @@
+groups:
+  - name: serviceops-slo-recording
+    interval: 10s
+    rules:
+      - record: serviceops:sli_http_requests:rate5m
+        expr: sum by (service_name) (rate(serviceops_http_requests_total[5m]))
+
+      - record: serviceops:sli_http_errors:rate5m
+        expr: >-
+          sum by (service_name) (
+            rate(serviceops_http_requests_total{status_code=~"5.."}[5m])
+          )
+          or
+          0 * sum by (service_name) (rate(serviceops_http_requests_total[5m]))
+
+      - record: serviceops:sli_availability:ratio5m
+        expr: >-
+          1 - (
+            serviceops:sli_http_errors:rate5m
+            /
+            clamp_min(serviceops:sli_http_requests:rate5m, 0.000001)
+          )
+
+      - record: serviceops:sli_http_requests:rate30d
+        expr: sum by (service_name) (rate(serviceops_http_requests_total[30d]))
+
+      - record: serviceops:sli_http_errors:rate30d
+        expr: >-
+          sum by (service_name) (
+            rate(serviceops_http_requests_total{status_code=~"5.."}[30d])
+          )
+          or
+          0 * sum by (service_name) (rate(serviceops_http_requests_total[30d]))
+
+      - record: serviceops:sli_availability:ratio30d
+        expr: >-
+          1 - (
+            serviceops:sli_http_errors:rate30d
+            /
+            clamp_min(serviceops:sli_http_requests:rate30d, 0.000001)
+          )
+
+      - record: serviceops:slo_error_budget:burn_rate5m
+        expr: >-
+          (
+            serviceops:sli_http_errors:rate5m
+            /
+            clamp_min(serviceops:sli_http_requests:rate5m, 0.000001)
+          ) / 0.005
+
+      - record: serviceops:slo_error_budget:remaining_ratio5m
+        expr: >-
+          clamp_max(
+            clamp_min(1 - serviceops:slo_error_budget:burn_rate5m, 1),
+            0
+          )
+
+      - record: serviceops:slo_error_budget:remaining_ratio30d
+        expr: >-
+          clamp_max(
+            clamp_min(
+              1 - (
+                (
+                  serviceops:sli_http_errors:rate30d
+                  /
+                  clamp_min(serviceops:sli_http_requests:rate30d, 0.000001)
+                ) / 0.005
+              ),
+              1
+            ),
+            0
+          )
+
+      - record: serviceops:sli_http_latency_p95_seconds:5m
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (service_name, le) (
+              rate(serviceops_http_request_duration_seconds_bucket[5m])
+            )
+          )
+
+      - record: serviceops:sli_http_latency_target:ratio30d
+        expr: >-
+          sum by (service_name) (
+            rate(serviceops_http_request_duration_seconds_bucket{le="1.0"}[30d])
+          )
+          /
+          clamp_min(
+            sum by (service_name) (
+              rate(serviceops_http_request_duration_seconds_count[30d])
+            ),
+            0.000001
+          )
+
+      - record: serviceops:slo_latency_error_budget:remaining_ratio30d
+        expr: >-
+          clamp_max(
+            clamp_min(
+              1 - ((1 - serviceops:sli_http_latency_target:ratio30d) / 0.05),
+              1
+            ),
+            0
+          )
+
+  - name: serviceops-alerts
+    interval: 10s
+    rules:
+      - alert: ServiceOpsSLOFastBurn
+        expr: serviceops:slo_error_budget:burn_rate5m > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          slo: api-availability
+          team: serviceops
+        annotations:
+          summary: "{{ $labels.service_name }} is rapidly consuming its availability budget"
+          description: "The 99.5% availability SLO is burning above 14.4x for two minutes."
+          runbook_url: "https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#availability-slo-burn"
+
+      - alert: ServiceOpsSLOSlowBurn
+        expr: serviceops:slo_error_budget:burn_rate5m > 6
+        for: 15m
+        labels:
+          severity: warning
+          slo: api-availability
+          team: serviceops
+        annotations:
+          summary: "{{ $labels.service_name }} is consuming its availability budget"
+          description: "The 99.5% availability SLO is burning above 6x for fifteen minutes."
+          runbook_url: "https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#availability-slo-burn"
+
+      - alert: ServiceOpsHighLatency
+        expr: serviceops:sli_http_latency_p95_seconds:5m > 1
+        for: 10m
+        labels:
+          severity: warning
+          slo: api-latency
+          team: serviceops
+        annotations:
+          summary: "{{ $labels.service_name }} p95 latency exceeds one second"
+          description: "Investigate the correlated trace and logs before the latency objective exhausts its budget."
+          runbook_url: "https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#high-latency"
+
+      - alert: ServiceOpsComponentDown
+        expr: up{job=~"serviceops-backend|serviceops-ai-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: serviceops
+        annotations:
+          summary: "{{ $labels.job }} is unavailable"
+          description: "Prometheus could not scrape the application for at least thirty seconds."
+          runbook_url: "https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#component-down"
+
+      - alert: ServiceOpsTelemetryPipelineDown
+        expr: up{job=~"serviceops-otel-collector|loki|tempo"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: serviceops
+        annotations:
+          summary: "Telemetry component {{ $labels.job }} is unavailable"
+          description: "A metrics, logs, or traces path is not accepting or exposing telemetry."
+          runbook_url: "https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#telemetry-pipeline-down"

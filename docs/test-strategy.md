@@ -18,6 +18,8 @@ Compose smoke test proves the real cross-service flow.
 | Azure deployment smoke | Manual workflow OIDC login, ACR remote builds, Terraform plan/apply, frontend health, authenticated ticket creation, Event Hubs round trip, and eventual ML classification |
 | Analytics unit/static | Deterministic 100,000-event cardinality, stable seed digest, valid transition chains, input validation, generator lint, and Power BI TMDL source/measure checks |
 | Analytics integration | PostgreSQL 17 operational migrations, bulk lifecycle load, dbt seeds/models, source/generic/singular data tests, SLA consistency, transition integrity, and ticket coverage |
+| Observability static/rules | Compose overlay, Collector/Loki/Prometheus/Alertmanager configuration validation, dashboard contract, 30-day SLO records, and fixed `promtool` firing expectations |
+| Observability runtime | Prometheus SLI metrics plus OTLP logs/traces for both applications, trace-derived RED metrics, a resolvable W3C Kafka producer-to-consumer span link, Grafana provisioning, AI outage detection, Alertmanager/webhook delivery, recovery, and resolved notification |
 
 ## Local commands
 
@@ -88,6 +90,22 @@ The final two commands require a migrated PostgreSQL database and the documented
 service, loads all 100,000 events, and runs the complete build rather than compiling SQL
 without executing it.
 
+Observability:
+
+```bash
+python scripts/validate_observability.py
+docker compose -f compose.yaml -f compose.observability.yaml config --quiet
+docker compose -p serviceops-observability-verify \
+  -f compose.yaml -f compose.observability.yaml up --build --detach --wait
+python scripts/smoke_test.py
+python scripts/observability_smoke_test.py \
+  --exercise-alert --project-name serviceops-observability-verify
+```
+
+The full drill intentionally stops and restores only `ai-service`; it does not delete
+application or telemetry volumes. The CI observability job validates configuration schemas
+and alert behavior without starting the complete stack.
+
 ## Baseline acceptance
 
 Before the final baseline commit:
@@ -109,6 +127,11 @@ Before the final baseline commit:
     six required business measures without embedded credentials.
 13. Run the fixed RAG evaluation, require at least 90% retrieval recall within the top three,
     require every unrelated question to abstain, and exercise a cited answer through Nginx.
+14. Validate the observability configurations with their pinned binaries and require the
+    `promtool` SLO/availability alert fixtures to pass.
+15. Run the telemetry smoke test, then the component-down drill; require both applications'
+    metrics, logs, and traces, a resolvable Kafka span link, the provisioned dashboard/data
+    sources, firing delivery, application recovery, and a resolved notification.
 
 GitHub Actions mirrors the language and Terraform commands and builds every Compose image
 after all quality jobs pass. Pull requests require no repository secrets. Azure deploy and
@@ -117,7 +140,8 @@ destroy are separate manual actions guarded by OIDC and an exact destroy confirm
 ## Intentional exclusions
 
 The baseline does not claim browser-engine end-to-end automation, application load metrics,
-security scanning, production model accuracy, cloud availability, or operational observability.
-Playwright, performance, security, and monitoring gates are documented roadmap work.
+security scanning, production model accuracy, cloud availability, or an HA telemetry backend.
+Playwright, performance, security, managed observability, and Kubernetes gates are documented
+deployment or roadmap work.
 Power BI Desktop/Fabric refresh and visual QA remain environment-specific manual checks;
 CI validates the tracked semantic-model structure and its mart contract.

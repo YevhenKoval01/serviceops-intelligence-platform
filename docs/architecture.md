@@ -31,6 +31,43 @@ flowchart LR
 | `postgres` | Tickets, transactional event records, processed-event keys | `pg_isready` |
 | `kafka` | Three versioned event topics | Redpanda cluster health |
 
+## Observability topology
+
+The application images contain pinned OpenTelemetry instrumentation but keep it disabled by
+default. The opt-in Compose overlay activates OTLP/HTTP export without changing application
+code or the normal runtime topology:
+
+```mermaid
+flowchart LR
+    API[Spring Boot + Java agent] -->|OTLP logs + traces| Collector[OpenTelemetry Collector]
+    AI[FastAPI + Python distro] -->|OTLP logs + traces| Collector
+    API -->|Bounded SLI scrape| Prom[(Prometheus)]
+    AI -->|Bounded SLI scrape| Prom
+    API -->|W3C trace context| Kafka[(Kafka)]
+    Kafka -->|W3C trace context| AI
+    Collector -->|Spans| Tempo[(Tempo)]
+    Collector -->|Logs| Loki[(Loki)]
+    Collector -->|Span RED metrics| Prom
+    Prom -->|Checked alert rules| AM[Alertmanager]
+    AM -->|Firing and resolved webhook| Receiver[Test operations receiver]
+    Prom --> Grafana[Provisioned Grafana]
+    Loki --> Grafana
+    Tempo --> Grafana
+```
+
+Spring and FastAPI expose the same bounded `serviceops_http_*` metric labels: service, method,
+route template, and status code. Raw URLs, ticket fields, knowledge questions, tokens, and
+credentials are deliberately excluded. Collector span metrics provide an independent RED
+view and exemplars. Kafka propagation is represented as a producer-to-consumer span link in
+accordance with the asynchronous messaging model. Grafana provisions bidirectional trace/log
+links and trace-to-metrics queries so an operator can move between symptoms and one
+correlated request or message flow.
+
+Prometheus evaluates rolling 30-day 99.5% availability and 95%-within-one-second latency
+objectives, error-budget records, burn alerts, component health, and telemetry health. The
+single-node local stores validate the capability and response process; they are not an HA
+production control plane.
+
 ## Analytics topology
 
 ```mermaid
@@ -93,9 +130,11 @@ ACR administrator credentials are disabled. A shared user-assigned identity rece
 the `AcrPull` role and is used by Container Apps to fetch immutable images. Terraform
 generates PostgreSQL, JWT, operator, and viewer secrets and stores them in encrypted Azure
 Blob remote state and Container Apps secret values. Key Vault integration, external
-identity, telemetry collection, managed analytics execution, Power BI publishing, and
-Kubernetes are outside this deployment. The repository analytics can run against any
-reachable PostgreSQL instance but is not silently provisioned by the Azure workflow.
+identity, a managed telemetry backend, managed analytics execution, Power BI publishing,
+and Kubernetes are outside this deployment. The application containers can export all
+signals to an explicitly configured external HTTPS OTLP endpoint; telemetry stays disabled
+when no endpoint is supplied. The repository analytics can run against any reachable
+PostgreSQL instance but is not silently provisioned by the Azure workflow.
 
 ## Ticket creation sequence
 
@@ -185,7 +224,9 @@ Role policy is deliberately small:
 | Create tickets and change status | No | Yes |
 | Call direct `/predict` diagnostic | No | Yes |
 
-Health checks and OpenAPI documents are public. Kafka consumers remain internal service
+Health checks, OpenAPI documents, and Prometheus scrape endpoints are public at the
+application layer; the Compose observability overlay binds its control-plane ports only to
+localhost. Kafka consumers remain internal service
 workloads and do not accept end-user credentials. Compose includes known non-secret local
 accounts and a development signing key so a clean clone is reproducible; every value is
 environment-configurable. The Azure deployment provides TLS ingress and managed

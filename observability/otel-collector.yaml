@@ -1,0 +1,70 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    send_batch_size: 512
+    timeout: 2s
+
+connectors:
+  span_metrics:
+    namespace: serviceops.spanmetrics
+    histogram:
+      unit: s
+      explicit:
+        buckets: [0.01s, 0.025s, 0.05s, 0.1s, 0.25s, 0.5s, 1s, 2.5s, 5s]
+    dimensions:
+      - name: http.request.method
+      - name: http.route
+      - name: messaging.system
+      - name: messaging.destination.name
+    exemplars:
+      enabled: true
+    exclude_dimensions: [collector.instance.id]
+    resource_metrics_key_attributes:
+      - service.name
+      - telemetry.sdk.language
+    aggregation_cardinality_limit: 5000
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    compression: gzip
+  prometheus:
+    endpoint: 0.0.0.0:9464
+    enable_open_metrics: true
+    resource_to_telemetry_conversion:
+      enabled: true
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo, span_metrics]
+    metrics:
+      receivers: [otlp, span_metrics]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]

@@ -64,7 +64,10 @@ jobs:
       - name: Install
         run: python -m pip install --upgrade pip==25.1.1 && python -m pip install -e ".[dev]"
       - name: Lint
-        run: python -m ruff check src tests ../scripts/cloud_smoke_test.py
+        run: >-
+          python -m ruff check src tests ../scripts/cloud_smoke_test.py
+          ../scripts/observability_smoke_test.py ../scripts/validate_observability.py
+          ../observability/alert-sink/server.py
       - name: Test
         run: python -m pytest
 
@@ -147,10 +150,45 @@ jobs:
     name: Container images
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    needs: [backend, ai-service, frontend, analytics]
+    needs: [backend, ai-service, frontend, analytics, observability]
     steps:
       - uses: actions/checkout@v4
       - name: Validate Compose model
         run: docker compose config --quiet
       - name: Build all images
         run: docker compose --profile analytics build
+
+  observability:
+    name: Observability contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source contracts
+        run: python scripts/validate_observability.py
+      - name: Validate Compose overlay
+        run: docker compose -f compose.yaml -f compose.observability.yaml config --quiet
+      - name: Validate Prometheus configuration and rules
+        run: |
+          docker run --rm -v "$PWD/observability/prometheus:/etc/prometheus:ro" --entrypoint /bin/promtool prom/prometheus:v3.13.0 check config /etc/prometheus/prometheus.yml
+          docker run --rm -v "$PWD/observability/prometheus:/etc/prometheus:ro" --entrypoint /bin/promtool prom/prometheus:v3.13.0 check rules /etc/prometheus/rules/serviceops.yml
+          docker run --rm -v "$PWD/observability/prometheus:/etc/prometheus:ro" --entrypoint /bin/promtool prom/prometheus:v3.13.0 test rules /etc/prometheus/rule-tests.yml
+      - name: Validate Alertmanager configuration
+        run: >-
+          docker run --rm -v "$PWD/observability/alertmanager:/etc/alertmanager"
+          --entrypoint amtool prom/alertmanager:v0.32.1
+          check-config /etc/alertmanager/alertmanager.yml
+      - name: Validate OpenTelemetry Collector configuration
+        run: >-
+          docker run --rm -v "$PWD/observability:/etc/serviceops:ro"
+          otel/opentelemetry-collector-contrib:0.152.0
+          validate --config=/etc/serviceops/otel-collector.yaml
+      - name: Validate Loki configuration
+        run: >-
+          docker run --rm -v "$PWD/observability/loki:/etc/loki:ro"
+          grafana/loki:3.7.2
+          --config.file=/etc/loki/loki.yaml --verify-config=true
+      - name: Validate JSON and Python receiver
+        run: |
+          python -m json.tool observability/grafana/dashboards/serviceops-overview.json >/dev/null
+          python -m py_compile observability/alert-sink/server.py

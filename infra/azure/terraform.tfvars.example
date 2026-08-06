@@ -2,6 +2,13 @@ image_tag   = "replace-with-an-immutable-git-sha"
 location    = "westeurope"
 environment = "demo"
 
+# Optional: enable portable application telemetry export to an externally operated
+# OTLP/HTTP endpoint. Keep authorization headers in a protected tfvars source or
+# pass them as a sensitive TF_VAR value; never commit a real credential.
+# otel_exporter_otlp_endpoint = "https://telemetry.example.com/otlp"
+# otel_exporter_otlp_headers  = "Authorization=Bearer replace-me"
+# otel_traces_sampler_arg     = 0.1
+
 tags = {
   owner       = "replace-me"
   cost-center = "portfolio-demo"

@@ -1,7 +1,7 @@
 # Azure deployment
 
 This Terraform root deploys the complete ServiceOps runtime to Azure without adding any
-managed analytics, observability, or Kubernetes components. It creates:
+managed analytics, telemetry backend, or Kubernetes components. It creates:
 
 - a workload-profile Azure Container Apps environment integrated with a dedicated VNet;
 - public HTTPS ingress for React/Nginx and internal ingress for Spring Boot and FastAPI;
@@ -95,9 +95,28 @@ terraform -chdir=infra/azure test
 
 The mocked plan test asserts private PostgreSQL, internal backend and AI ingress, the
 frontend-to-AI RAG proxy target, public frontend ingress, disabled ACR administrator
-credentials, three event hubs, and a non-zero AI worker.
+credentials, three event hubs, a non-zero AI worker, and explicit telemetry enablement.
 An actual plan/apply still requires Azure credentials, remote backend settings, and images
 already available in ACR; the workflow owns that bootstrap sequence.
+
+## Optional external telemetry export
+
+The Spring and FastAPI images contain the same pinned OpenTelemetry instrumentation used by
+the local observability overlay. Terraform keeps the SDK disabled when no endpoint is given.
+To export metrics, logs, and traces to an externally operated backend, set an HTTPS OTLP/HTTP
+endpoint and, when required, sensitive authorization headers:
+
+```hcl
+otel_exporter_otlp_endpoint = "https://telemetry.example.com/otlp"
+otel_exporter_otlp_headers  = "Authorization=Bearer replace-me"
+otel_traces_sampler_arg     = 0.1
+```
+
+Pass the header through a protected `.tfvars` source or `TF_VAR_otel_exporter_otlp_headers`;
+never commit a real value. Terraform injects it through Container Apps secrets, though it
+still exists in encrypted Terraform state. The endpoint is deployment infrastructure: this
+root does not create Grafana, Prometheus, Loki, Tempo, Azure Monitor, or a notification
+provider. The mocked plan tests both default-disabled and explicitly enabled export paths.
 
 ## Service compatibility settings
 

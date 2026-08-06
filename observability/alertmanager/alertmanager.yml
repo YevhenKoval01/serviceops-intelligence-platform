@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: serviceops-operations
+  group_by: [alertname, service_name, job]
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 4h
+
+receivers:
+  - name: serviceops-operations
+    webhook_configs:
+      - url: http://alert-sink:8081/alerts
+        send_resolved: true

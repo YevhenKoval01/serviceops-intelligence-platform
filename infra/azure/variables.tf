@@ -54,6 +54,42 @@ variable "viewer_username" {
   default     = "viewer"
 }
 
+variable "otel_exporter_otlp_endpoint" {
+  description = "Optional HTTPS OTLP/HTTP endpoint for an externally operated telemetry backend. Null keeps the SDK disabled."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.otel_exporter_otlp_endpoint == null || can(regex("^https://[^[:space:]]+$", var.otel_exporter_otlp_endpoint))
+    error_message = "otel_exporter_otlp_endpoint must be null or an HTTPS URL."
+  }
+}
+
+variable "otel_exporter_otlp_headers" {
+  description = "Optional comma-separated OTLP exporter authorization headers stored as Container Apps secrets."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+
+  validation {
+    condition     = var.otel_exporter_otlp_headers == null || length(trimspace(var.otel_exporter_otlp_headers)) > 0
+    error_message = "otel_exporter_otlp_headers must be null or a non-empty header string."
+  }
+}
+
+variable "otel_traces_sampler_arg" {
+  description = "Trace sampling ratio used when an external OTLP endpoint is configured."
+  type        = number
+  default     = 0.1
+
+  validation {
+    condition     = var.otel_traces_sampler_arg > 0 && var.otel_traces_sampler_arg <= 1
+    error_message = "otel_traces_sampler_arg must be greater than 0 and no greater than 1."
+  }
+}
+
 variable "tags" {
   description = "Additional tags merged onto workload resources."
   type        = map(string)

@@ -1,0 +1,39 @@
+rule_files:
+  - rules/serviceops.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'serviceops_http_requests_total{service_name="serviceops-backend",status_code="200"}'
+        values: '0+90x12'
+      - series: 'serviceops_http_requests_total{service_name="serviceops-backend",status_code="500"}'
+        values: '0+10x12'
+      - series: 'up{job="serviceops-ai-service",instance="ai-service:8000"}'
+        values: '0x12'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServiceOpsSLOFastBurn
+        exp_alerts:
+          - exp_labels:
+              service_name: serviceops-backend
+              severity: critical
+              slo: api-availability
+              team: serviceops
+            exp_annotations:
+              summary: serviceops-backend is rapidly consuming its availability budget
+              description: The 99.5% availability SLO is burning above 14.4x for two minutes.
+              runbook_url: https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#availability-slo-burn
+      - eval_time: 2m
+        alertname: ServiceOpsComponentDown
+        exp_alerts:
+          - exp_labels:
+              instance: ai-service:8000
+              job: serviceops-ai-service
+              severity: critical
+              team: serviceops
+            exp_annotations:
+              summary: serviceops-ai-service is unavailable
+              description: Prometheus could not scrape the application for at least thirty seconds.
+              runbook_url: https://github.com/yevhenkoval/serviceops-intelligence-platform/blob/main/docs/observability-runbook.md#component-down

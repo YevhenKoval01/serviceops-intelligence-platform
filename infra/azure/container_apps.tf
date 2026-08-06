@@ -5,7 +5,28 @@ locals {
     azurerm_eventhub_namespace_authorization_rule.applications.primary_connection_string,
   )
 
-  backend_environment = {
+  telemetry_environment = var.otel_exporter_otlp_endpoint == null ? tomap({
+    OTEL_SDK_DISABLED = "true"
+    }) : tomap({
+    OTEL_SDK_DISABLED           = "false"
+    OTEL_EXPORTER_OTLP_ENDPOINT = var.otel_exporter_otlp_endpoint
+    OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf"
+    OTEL_TRACES_EXPORTER        = "otlp"
+    OTEL_METRICS_EXPORTER       = "otlp"
+    OTEL_LOGS_EXPORTER          = "otlp"
+    OTEL_PROPAGATORS            = "tracecontext,baggage"
+    OTEL_TRACES_SAMPLER         = "parentbased_traceidratio"
+    OTEL_TRACES_SAMPLER_ARG     = tostring(var.otel_traces_sampler_arg)
+    OTEL_RESOURCE_ATTRIBUTES    = "deployment.environment.name=${var.environment},cloud.provider=azure,service.namespace=serviceops"
+  })
+  telemetry_secret_environment = var.otel_exporter_otlp_headers == null ? {} : {
+    OTEL_EXPORTER_OTLP_HEADERS = "otel-exporter-headers"
+  }
+  telemetry_secrets = var.otel_exporter_otlp_headers == null ? {} : {
+    otel-exporter-headers = var.otel_exporter_otlp_headers
+  }
+
+  backend_environment = merge({
     SPRING_DATASOURCE_URL                                = "jdbc:postgresql://${azurerm_postgresql_flexible_server.main.fqdn}:5432/serviceops?sslmode=require"
     SPRING_DATASOURCE_USERNAME                           = var.postgres_administrator_login
     SPRING_KAFKA_BOOTSTRAP_SERVERS                       = local.eventhubs_bootstrap_server
@@ -25,23 +46,24 @@ locals {
     SERVICEOPS_AUTH_OPERATOR_USERNAME                    = var.operator_username
     SERVICEOPS_AUTH_VIEWER_USERNAME                      = var.viewer_username
     SERVICEOPS_KAFKA_HEALTH_TIMEOUT                      = "10s"
-  }
-  backend_secret_environment = {
+    OTEL_SERVICE_NAME                                    = "serviceops-backend"
+  }, local.telemetry_environment)
+  backend_secret_environment = merge({
     SPRING_DATASOURCE_PASSWORD               = "postgres-password"
     SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG = "eventhubs-jaas"
     SERVICEOPS_AUTH_JWT_SECRET               = "jwt-secret"
     SERVICEOPS_AUTH_OPERATOR_PASSWORD        = "operator-password"
     SERVICEOPS_AUTH_VIEWER_PASSWORD          = "viewer-password"
-  }
-  backend_secrets = {
+  }, local.telemetry_secret_environment)
+  backend_secrets = merge({
     postgres-password = random_password.postgres.result
     eventhubs-jaas    = local.eventhubs_jaas_config
     jwt-secret        = random_password.jwt.result
     operator-password = random_password.operator.result
     viewer-password   = random_password.viewer.result
-  }
+  }, local.telemetry_secrets)
 
-  ai_environment = {
+  ai_environment = merge({
     KAFKA_BOOTSTRAP_SERVERS       = local.eventhubs_bootstrap_server
     KAFKA_ENABLED                 = "true"
     KAFKA_PROFILE                 = "azure-event-hubs"
@@ -52,15 +74,16 @@ locals {
     MODEL_PATH                    = "/tmp/serviceops-baseline.joblib"
     SERVICEOPS_AUTH_ISSUER        = "serviceops-${var.environment}"
     SERVICEOPS_AUTH_AUDIENCE      = "serviceops-api"
-  }
-  ai_secret_environment = {
+    OTEL_SERVICE_NAME             = "serviceops-ai-service"
+  }, local.telemetry_environment)
+  ai_secret_environment = merge({
     KAFKA_SASL_PASSWORD        = "eventhubs-connection"
     SERVICEOPS_AUTH_JWT_SECRET = "jwt-secret"
-  }
-  ai_secrets = {
+  }, local.telemetry_secret_environment)
+  ai_secrets = merge({
     eventhubs-connection = azurerm_eventhub_namespace_authorization_rule.applications.primary_connection_string
     jwt-secret           = random_password.jwt.result
-  }
+  }, local.telemetry_secrets)
 }
 
 resource "azurerm_container_app" "backend" {
