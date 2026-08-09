@@ -97,6 +97,8 @@ jobs:
           done
       - name: Build deployable images
         run: |
+          docker pull docker.redpanda.com/redpandadata/redpanda:v26.2.1
+          docker pull postgres:17.10-alpine
           docker build --tag serviceops-security/backend:ci backend
           docker build --tag serviceops-security/ai-service:ci --file ai-service/Dockerfile .
           docker build --tag serviceops-security/frontend:ci frontend
