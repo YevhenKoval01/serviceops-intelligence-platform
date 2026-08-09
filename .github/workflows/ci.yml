@@ -216,12 +216,12 @@ jobs:
           ./kubectl kustomize k8s/overlays/production > /tmp/serviceops-production.yaml
       - name: Install kubeconform 0.7.0
         run: |
-          curl --fail --location --silent --show-error --output kubeconform.tar.gz \
+          curl --fail --location --silent --show-error --output kubeconform-linux-amd64.tar.gz \
             https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz
           curl --fail --location --silent --show-error --output CHECKSUMS \
             https://github.com/yannh/kubeconform/releases/download/v0.7.0/CHECKSUMS
           grep 'kubeconform-linux-amd64.tar.gz' CHECKSUMS | sha256sum --check
-          tar -xzf kubeconform.tar.gz kubeconform
+          tar -xzf kubeconform-linux-amd64.tar.gz kubeconform
       - name: Validate Kubernetes 1.36 schemas
         run: >-
           ./kubeconform -strict -summary -kubernetes-version 1.36.0
