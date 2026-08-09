@@ -30,6 +30,10 @@ analytics/dbt/.user.yml
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+performance/results/
+security-results/
 
 # IDE and operating system
 .idea/

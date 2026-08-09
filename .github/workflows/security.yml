@@ -1,0 +1,135 @@
+name: Security
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Initialize Java, JavaScript/TypeScript, Python, and workflow analysis
+        uses: github/codeql-action/init@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        with:
+          languages: java-kotlin,javascript-typescript,python,actions
+          build-mode: none
+          queries: security-extended
+      - name: Analyze source
+        uses: github/codeql-action/analyze@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+
+  trivy:
+    name: Dependencies, configuration, images, and secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install checksum-verified Trivy 0.73.0
+        run: |
+          curl --fail --location --silent --show-error \
+            --output trivy_0.73.0_Linux-64bit.tar.gz \
+            https://github.com/aquasecurity/trivy/releases/download/v0.73.0/trivy_0.73.0_Linux-64bit.tar.gz
+          curl --fail --location --silent --show-error \
+            --output trivy_0.73.0_checksums.txt \
+            https://github.com/aquasecurity/trivy/releases/download/v0.73.0/trivy_0.73.0_checksums.txt
+          grep 'trivy_0.73.0_Linux-64bit.tar.gz' trivy_0.73.0_checksums.txt | sha256sum --check
+          tar -xzf trivy_0.73.0_Linux-64bit.tar.gz trivy
+          ./trivy --version
+      - name: Export pinned Python dependency manifests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tomllib
+
+          for project in ("ai-service", "analytics"):
+              source = Path(project, "pyproject.toml")
+              metadata = tomllib.loads(source.read_text(encoding="utf-8"))["project"]
+              dependencies = [
+                  *metadata["dependencies"],
+                  *metadata.get("optional-dependencies", {}).get("dev", []),
+              ]
+              target = Path("/tmp", project, "requirements.txt")
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text("\n".join(dependencies) + "\n", encoding="utf-8")
+          PY
+      - name: Scan source dependencies and secrets
+        run: |
+          set -euo pipefail
+          for target in \
+            backend/pom.xml frontend/package-lock.json \
+            /tmp/ai-service/requirements.txt /tmp/analytics/requirements.txt; do
+            ./trivy fs --skip-version-check --offline-scan --include-dev-deps \
+              --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$target"
+          done
+          for target in \
+            .github backend/src ai-service/src ai-service/tests ai-service/knowledge \
+            analytics/src analytics/scripts frontend/src frontend/e2e contracts infra k8s \
+            observability performance scripts security; do
+            ./trivy fs --skip-version-check --scanners secret --exit-code 1 "$target"
+          done
+      - name: Render Kubernetes resources
+        run: |
+          kubectl kustomize k8s/overlays/local > /tmp/serviceops-local.yaml
+          kubectl kustomize k8s/overlays/production > /tmp/serviceops-production.yaml
+      - name: Scan Docker, Terraform, and rendered Kubernetes configuration
+        run: |
+          set -euo pipefail
+          for target in \
+            backend/Dockerfile ai-service/Dockerfile analytics/Dockerfile frontend/Dockerfile \
+            infra/azure /tmp/serviceops-local.yaml /tmp/serviceops-production.yaml; do
+            ./trivy config --skip-version-check --severity HIGH,CRITICAL --exit-code 1 "$target"
+          done
+      - name: Build deployable images
+        run: |
+          docker build --tag serviceops-security/backend:ci backend
+          docker build --tag serviceops-security/ai-service:ci --file ai-service/Dockerfile .
+          docker build --tag serviceops-security/frontend:ci frontend
+          docker build --tag serviceops-security/analytics:ci analytics
+      - name: Gate critical runtime vulnerabilities and generate SBOMs
+        run: |
+          set -euo pipefail
+          mkdir -p security-results
+          images=(
+            serviceops-security/backend:ci
+            serviceops-security/ai-service:ci
+            serviceops-security/frontend:ci
+            serviceops-security/analytics:ci
+            postgres:17.10-alpine
+            docker.redpanda.com/redpandadata/redpanda:v26.2.1
+          )
+          for image in "${images[@]}"; do
+            safe_name="$(printf '%s' "$image" | tr '/:' '--')"
+            ignore_args=()
+            if [[ "$image" == "postgres:17.10-alpine" ]]; then
+              ignore_args=(--ignorefile security/trivy/postgres.ignore)
+            fi
+            ./trivy image --skip-version-check --scanners vuln \
+              --severity CRITICAL --ignore-unfixed \
+              "${ignore_args[@]}" --exit-code 1 "$image"
+            ./trivy image --skip-version-check --scanners vuln --format cyclonedx \
+              --output "security-results/${safe_name}.cdx.json" "$image"
+          done
+      - name: Upload software bills of materials
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: container-sboms
+          path: security-results/*.cdx.json
+          if-no-files-found: error
+          retention-days: 30

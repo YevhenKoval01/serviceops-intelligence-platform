@@ -44,20 +44,40 @@ Requirements:
 - Docker Desktop with at least 4 GB assigned to its Linux engine;
 - Python 3.12+;
 - kubectl 1.34+;
-- kind 0.32.0.
+- kind 0.32.0;
+- Node.js 22+ and the frontend packages for the browser gate.
 
 The verification script refuses to touch a cluster with its chosen name. It builds the
 three application images, creates a dedicated kind cluster, loads the images, applies the
 local overlay, waits for every rollout, checks that the backend service account cannot read
 Secrets, and runs the authenticated public API smoke test through a frontend port-forward.
-It then restarts PostgreSQL, proves the classified ticket survived its pod replacement,
-restarts Redpanda, and proves a second event round trip. The dedicated cluster is deleted in
-`finally` unless `--keep-cluster` is explicitly supplied.
+Quality-gate mode then runs Playwright against the rendered UI and k6 against the same Nginx
+boundary. It finally restarts PostgreSQL, proves the classified ticket survived its pod
+replacement, restarts Redpanda, and proves a second event round trip. The dedicated cluster
+is deleted in `finally` unless `--keep-cluster` is explicitly supplied.
 
 ```bash
 python scripts/validate_kubernetes.py
-python scripts/kubernetes_smoke_test.py
+cd frontend
+npm ci
+npx playwright install chromium
+cd ..
+python scripts/kubernetes_smoke_test.py --quality-gates
 ```
+
+The Playwright suite checks invalid-login isolation, viewer read-only behavior plus cited
+knowledge rendering, and an operator's create/classify/resolve journey. On Linux it uses
+Playwright's installed Chromium by default; `--playwright-channel msedge` can select a locally
+installed Edge channel. Reports are written below `frontend/playwright-report` and
+`frontend/test-results`.
+
+The k6 baseline schedules one iteration per second for 30 seconds. Each iteration checks
+frontend health, the authenticated ticket queue, and a grounded knowledge response. It
+requires fewer than 1% failed requests and p95 latency below 500 ms for health, 1,000 ms for
+tickets, and 2,000 ms for knowledge. If `k6` is absent, the script runs a digest-pinned k6
+container. The JSON result is written to `performance/results/kubernetes-load-summary.json`.
+These thresholds detect regressions in the small kind topology; they are not throughput,
+stress, soak, or production-capacity evidence.
 
 On Windows, the scripts also discover `kind.exe` and `kubectl.exe` under
 `.tools/kubernetes`. To retain a failed cluster for diagnosis:
@@ -150,3 +170,8 @@ should normally replace them with backed-up, replicated managed services or an a
 operator-based design. The manifests do not install a cloud load balancer, certificate
 issuer, DNS controller, storage driver, CNI, metrics-server, secret manager, or multi-cluster
 failover system because those are cluster-level choices, not safe application placeholders.
+
+The checked browser and load paths likewise establish a reproducible acceptance baseline,
+not broad browser compatibility or a multi-node availability/load claim. Security automation
+is documented in `docs/security-testing.md`; automated findings must still be interpreted in
+the target environment and do not replace an approved security assessment.

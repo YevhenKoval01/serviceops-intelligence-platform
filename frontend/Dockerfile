@@ -5,7 +5,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:1.27.5-alpine
+FROM nginx:1.30.4-alpine
 ENV BACKEND_SCHEME=http \
     BACKEND_HOST=backend \
     BACKEND_PORT=8080 \

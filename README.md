@@ -12,7 +12,9 @@ An opt-in OpenTelemetry pipeline correlates metrics, logs, and distributed trace
 HTTP, PostgreSQL, and Kafka, with provisioned SLO dashboards and tested alert delivery.
 A hardened Kustomize deployment runs the same platform on Kubernetes with restricted pods,
 persistent state, network isolation, autoscaling controls, and an isolated kind acceptance
-test.
+test. That acceptance path also drives the rendered application in a real browser and checks
+a short, thresholded HTTP load profile. CodeQL and Trivy provide scheduled and change-driven
+source, dependency, secret, infrastructure, and container security gates.
 
 > Project status: **Baseline complete - active development**
 
@@ -102,6 +104,8 @@ or automatic document ingestion.
 | OpenTelemetry Java/Python + Collector | Portable OTLP instrumentation, W3C context propagation, and trace-derived RED metrics |
 | Prometheus, Alertmanager, Grafana, Loki, Tempo | SLO records, error budgets, alert routing, dashboards, logs, and traces |
 | Kubernetes 1.36, Kustomize, kind | Restricted workload manifests, persistent state, scaling policy, and real-cluster verification |
+| Playwright, k6 | Real-browser role/workflow acceptance and a bounded Kubernetes latency baseline |
+| CodeQL, Trivy | Static analysis, dependency/secret/configuration/image scanning, and container SBOMs |
 
 ## Run locally
 
@@ -197,8 +201,14 @@ Run the complete disposable kind acceptance test:
 
 ```bash
 python scripts/validate_kubernetes.py
-python scripts/kubernetes_smoke_test.py
+cd frontend && npm ci && npx playwright install chromium && cd ..
+python scripts/kubernetes_smoke_test.py --quality-gates
 ```
+
+The quality-gate mode runs three browser journeys and a 30-second, one-iteration-per-second
+k6 profile through the same forwarded Nginx boundary before exercising PostgreSQL and
+Redpanda recovery. k6 uses its pinned container when no local binary is installed. See the
+[Kubernetes deployment guide](k8s/README.md) for the measured thresholds and evidence paths.
 
 The manual `Kubernetes deployment` workflow builds immutable GHCR images, server-validates
 the rendered resources, applies them to an environment namespace, waits for readiness, and
@@ -388,7 +398,12 @@ The latest local regression on 9 August 2026 measured:
 - Kubernetes: both overlays passed source, Kustomize, strict Kubernetes 1.36 schema, and
   server-side validation; a disposable kind 1.36.1 cluster brought all five workloads Ready,
   denied backend Secret reads, completed two event round trips, retained a classified ticket
-  across PostgreSQL pod replacement, and recovered after Redpanda pod replacement.
+  across PostgreSQL pod replacement, recovered after Redpanda pod replacement, completed
+  the three Playwright role/workflow journeys, and passed the bounded k6 thresholds.
+- Security: CodeQL covers Java/Kotlin, JavaScript/TypeScript, Python, and GitHub Actions;
+  Trivy gates fixed high/critical source dependencies, tracked-tree secrets, high/critical
+  Docker/Terraform/Kubernetes misconfigurations, and fixed critical container findings while
+  publishing CycloneDX SBOMs for all six runtime images.
 - Model: 40 synthetic training rows; the fixed held-out split measured `0.60` category
   accuracy and `0.50` priority accuracy. These small-sample scores are reproducibility
   evidence, not production performance claims.
@@ -418,5 +433,7 @@ The latest local regression on 9 August 2026 measured:
   identity federation, self-service account lifecycle, refresh/revocation flows, and a
   managed secret store remain roadmap work. Local Compose still uses development HTTP;
   Azure application ingress and managed service connections use TLS.
-- Browser-engine automation, load measurements, and security scanning are for next phase work;
-  the current cross-service smoke test uses authenticated HTTP APIs.
+- Browser automation, load measurements, and security scanning are checked baselines, not
+  exhaustive assurance. The browser suite currently targets one engine per run, the load
+  profile is deliberately short and low-rate, and automated scanners do not replace threat
+  modeling, penetration testing, stress/soak testing, or production capacity validation.

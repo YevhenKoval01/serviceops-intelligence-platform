@@ -1,0 +1,4 @@
+# CVE-2025-68121 is confined to gosu's statically linked Go TLS implementation.
+# gosu performs a local uid/gid transition and makes no TLS connections in this platform.
+# Owner: Platform engineering. Review or remove by: 2026-09-30.
+CVE-2025-68121

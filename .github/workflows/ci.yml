@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 25
     services:
       postgres:
-        image: postgres:17.5-alpine
+        image: postgres:17.10-alpine
         env:
           POSTGRES_DB: serviceops
           POSTGRES_USER: serviceops
@@ -226,3 +226,50 @@ jobs:
         run: >-
           ./kubeconform -strict -summary -kubernetes-version 1.36.0
           /tmp/serviceops-local.yaml /tmp/serviceops-production.yaml
+
+  kubernetes-acceptance:
+    name: Kubernetes browser and load acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    needs: [backend, ai-service, frontend, kubernetes]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend browser dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Install kind 0.32.0 and kubectl 1.36.2
+        run: |
+          curl --fail --location --silent --show-error --output kind \
+            https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64
+          curl --fail --location --silent --show-error --output kind.sha256sum \
+            https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64.sha256sum
+          sha256sum --check kind.sha256sum
+          chmod +x kind
+          curl --fail --location --silent --show-error --output kubectl \
+            https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error --output kubectl.sha256 \
+            https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl.sha256
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          chmod +x kubectl
+      - name: Run isolated Kubernetes quality gates
+        run: >-
+          python scripts/kubernetes_smoke_test.py
+          --kind "$PWD/kind" --kubectl "$PWD/kubectl" --quality-gates
+      - name: Upload browser and load evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: kubernetes-quality-evidence
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            performance/results/
+          if-no-files-found: ignore
+          retention-days: 14

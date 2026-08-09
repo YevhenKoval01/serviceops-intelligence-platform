@@ -2,7 +2,7 @@ name: serviceops-intelligence-platform
 
 services:
   postgres:
-    image: postgres:17.5-alpine
+    image: postgres:17.10-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-serviceops}
       POSTGRES_USER: ${POSTGRES_USER:-serviceops}
@@ -20,7 +20,7 @@ services:
       - serviceops
 
   kafka:
-    image: docker.redpanda.com/redpandadata/redpanda:v24.3.18
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.1
     command:
       - redpanda
       - start

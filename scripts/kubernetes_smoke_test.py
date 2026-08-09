@@ -21,6 +21,7 @@ KIND_NODE_IMAGE = (
     "kindest/node:v1.36.1@sha256:"
     "3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
 )
+K6_IMAGE = "grafana/k6@sha256:a33a0cfdc4d2483d6b7a3a22e726a499ff2831a671a49239104cd34a9937523c"
 TICKET_PATTERN = re.compile(r"ticket ([0-9a-f-]{36}) classified")
 
 
@@ -103,7 +104,7 @@ def run_public_smoke() -> str:
     environment = os.environ.copy()
     environment.update(
         {
-            "SERVICEOPS_BASE_URL": "http://127.0.0.1:3000",
+            "SERVICEOPS_BASE_URL": "http://localhost:3000",
             "SERVICEOPS_OPERATOR_USERNAME": "operator",
             "SERVICEOPS_OPERATOR_PASSWORD": "operator_dev_2026",
         }
@@ -119,14 +120,113 @@ def run_public_smoke() -> str:
     return match.group(1)
 
 
-def assert_ticket_persisted(ticket_id: str) -> None:
-    login = request(
-        "/api/auth/login",
-        payload={"username": "operator", "password": "operator_dev_2026"},
+def run_browser_acceptance(
+    *,
+    npm_override: str | None,
+    node_override: str | None,
+    channel: str | None,
+) -> None:
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "SERVICEOPS_BASE_URL": "http://localhost:3000",
+            "SERVICEOPS_OPERATOR_USERNAME": "operator",
+            "SERVICEOPS_OPERATOR_PASSWORD": "operator_dev_2026",
+            "SERVICEOPS_VIEWER_USERNAME": "viewer",
+            "SERVICEOPS_VIEWER_PASSWORD": "viewer_dev_2026",
+        }
     )
-    ticket = request(f"/api/tickets/{ticket_id}", token=login["accessToken"])
-    if ticket["id"] != ticket_id or not ticket["predictedCategory"]:
-        raise AssertionError("The classified ticket did not survive the PostgreSQL restart")
+    if channel:
+        environment["PLAYWRIGHT_CHANNEL"] = channel
+
+    if node_override:
+        playwright_cli = ROOT / "frontend" / "node_modules" / "@playwright" / "test" / "cli.js"
+        if not playwright_cli.is_file():
+            raise RuntimeError(
+                "Playwright dependencies are missing; install frontend packages before using --node"
+            )
+        command = [
+            node_override,
+            str(playwright_cli),
+            "test",
+            "--config",
+            str(ROOT / "frontend" / "playwright.config.ts"),
+        ]
+    else:
+        npm = executable("npm", npm_override)
+        command = [npm, "--prefix", str(ROOT / "frontend"), "run", "test:e2e"]
+    run(command, env=environment)
+
+
+def run_load_acceptance(*, docker: str, k6_override: str | None) -> None:
+    results = ROOT / "performance" / "results"
+    results.mkdir(parents=True, exist_ok=True)
+    script = ROOT / "performance" / "kubernetes-load.js"
+    summary = results / "kubernetes-load-summary.json"
+
+    k6 = k6_override or shutil.which("k6")
+    if k6:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "SERVICEOPS_BASE_URL": "http://127.0.0.1:3000",
+                "SERVICEOPS_OPERATOR_USERNAME": "operator",
+                "SERVICEOPS_OPERATOR_PASSWORD": "operator_dev_2026",
+                "K6_SUMMARY_PATH": str(summary),
+            }
+        )
+        run([k6, "run", str(script)], env=environment)
+        return
+
+    base_url = (
+        "http://127.0.0.1:3000"
+        if sys.platform.startswith("linux")
+        else "http://host.docker.internal:3000"
+    )
+    command = [docker, "run", "--rm"]
+    if sys.platform.startswith("linux"):
+        command.extend(["--network", "host"])
+    command.extend(
+        [
+            "--env",
+            f"SERVICEOPS_BASE_URL={base_url}",
+            "--env",
+            "SERVICEOPS_OPERATOR_USERNAME=operator",
+            "--env",
+            "SERVICEOPS_OPERATOR_PASSWORD=operator_dev_2026",
+            "--env",
+            "K6_SUMMARY_PATH=/workspace/performance/results/kubernetes-load-summary.json",
+            "--volume",
+            f"{ROOT}:/workspace",
+            "--workdir",
+            "/workspace",
+            K6_IMAGE,
+            "run",
+            "performance/kubernetes-load.js",
+        ]
+    )
+    run(command)
+
+
+def assert_ticket_persisted(ticket_id: str, timeout_seconds: int = 120) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            login = request(
+                "/api/auth/login",
+                payload={"username": "operator", "password": "operator_dev_2026"},
+            )
+            ticket = request(f"/api/tickets/{ticket_id}", token=login["accessToken"])
+            if ticket["id"] == ticket_id and ticket["predictedCategory"]:
+                return
+            last_error = AssertionError("The restored ticket is not classified")
+        except (OSError, KeyError) as error:
+            last_error = error
+        time.sleep(2)
+    raise TimeoutError(
+        "The classified ticket was not readable after the PostgreSQL restart"
+    ) from last_error
 
 
 def main() -> int:
@@ -135,6 +235,13 @@ def main() -> int:
     parser.add_argument("--docker")
     parser.add_argument("--kubectl")
     parser.add_argument("--kind")
+    parser.add_argument("--npm")
+    parser.add_argument("--node")
+    parser.add_argument("--playwright-channel")
+    parser.add_argument("--k6")
+    parser.add_argument("--browser", action="store_true")
+    parser.add_argument("--load", action="store_true")
+    parser.add_argument("--quality-gates", action="store_true")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--keep-cluster", action="store_true")
     parser.add_argument("--skip-recovery", action="store_true")
@@ -259,6 +366,15 @@ def main() -> int:
         wait_for_frontend()
         ticket_id = run_public_smoke()
 
+        if args.browser or args.quality_gates:
+            run_browser_acceptance(
+                npm_override=args.npm,
+                node_override=args.node,
+                channel=args.playwright_channel,
+            )
+        if args.load or args.quality_gates:
+            run_load_acceptance(docker=docker, k6_override=args.k6)
+
         if not args.skip_recovery:
             kubectl(
                 kubectl_command,
@@ -324,7 +440,10 @@ def main() -> int:
             "-o",
             "wide",
         )
-        print("Kubernetes kind deployment, API flow, RBAC, and persistence checks passed.")
+        checked = "API flow, RBAC, and persistence"
+        if args.quality_gates:
+            checked += ", browser automation, and bounded load thresholds"
+        print(f"Kubernetes kind deployment, {checked} checks passed.")
         return 0
     finally:
         if port_forward is not None:

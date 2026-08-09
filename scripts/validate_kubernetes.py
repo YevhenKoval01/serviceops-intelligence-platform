@@ -76,6 +76,10 @@ def validate_sources() -> None:
         base_text.count("allowPrivilegeEscalation: false") >= 7,
         "Every container and init container must block privilege escalation",
     )
+    require(
+        base_text.count("readOnlyRootFilesystem: true") == 7,
+        "Every container and init container must use a read-only root filesystem",
+    )
     for probe in ("startupProbe:", "readinessProbe:", "livenessProbe:"):
         require(base_text.count(probe) == 5, f"Every workload must define {probe}")
     require(

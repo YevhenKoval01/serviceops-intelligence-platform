@@ -32,10 +32,24 @@ unsafe-output testing remain AI-quality roadmap work.
 ## Phase 1.3: reliability and QA
 
 - Schema Registry or equivalent producer/consumer compatibility checks.
-- Playwright browser flows and a Postman/Newman API collection.
-- Load tests with measured latency and throughput.
-- Dependency, container, and static security scanning.
+- A Postman/Newman API collection.
+- Broader cross-browser coverage, stress/soak profiles, and environment capacity tests.
+- Threat modeling, penetration testing, and organization-specific security policy gates.
 - Incident runbook and an example root-cause analysis.
+
+## Delivered: Kubernetes browser, load, and security gates
+
+- Three Playwright journeys through the kind-hosted frontend covering authentication,
+  viewer authorization and cited guidance, and the operator ticket lifecycle.
+- A reproducible 30-second k6 profile with content/error checks and endpoint-specific p95
+  latency thresholds against the same public boundary.
+- CodeQL extended analysis across the repository's four code/workflow language families.
+- Trivy dependency, secret, Docker/Terraform/Kubernetes configuration, and container-image
+  gates, plus downloadable CycloneDX SBOMs for every runtime image.
+
+These are regression-oriented baseline gates. Cross-browser matrices, stress/soak and
+production capacity measurements, threat modeling, and penetration testing remain future
+environment-specific assurance work.
 
 ## Delivered: Azure deployment
 
