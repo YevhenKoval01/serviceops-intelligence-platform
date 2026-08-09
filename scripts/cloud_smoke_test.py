@@ -85,7 +85,7 @@ def main() -> None:
         "/api/tickets",
         method="POST",
         payload={
-            "title": f"Azure deployment smoke test {suffix}",
+            "title": f"Cloud deployment smoke test {suffix}",
             "description": "Production API requests return server errors for every customer.",
             "reportedPriority": "HIGH",
         },

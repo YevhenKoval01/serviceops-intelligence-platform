@@ -31,6 +31,20 @@ flowchart LR
 | `postgres` | Tickets, transactional event records, processed-event keys | `pg_isready` |
 | `kafka` | Three versioned event topics | Redpanda cluster health |
 
+## Kubernetes runtime
+
+Kustomize maps the three stateless applications to Deployments and the two stateful
+dependencies to StatefulSets. Only the frontend Service crosses the public boundary; it
+continues to proxy `/api/` to Spring and `/assistant/` to FastAPI, so backend and AI Services
+remain cluster-internal. PostgreSQL and Redpanda use independent `ReadWriteOnce` claims.
+
+The namespace enforces Restricted Pod Security. Workloads have numeric non-root identities,
+no mounted Kubernetes API credentials, bounded resources, startup/readiness/liveness probes,
+rolling-update controls, and default-deny ingress policy. Production Kustomize resources add
+replicas and CPU HPAs for the stateless tier; their usefulness depends on a multi-node
+cluster and metrics-server. The single bundled PostgreSQL and Redpanda replicas are a
+portable acceptance topology, not a highly available state layer.
+
 ## Observability topology
 
 The application images contain pinned OpenTelemetry instrumentation but keep it disabled by

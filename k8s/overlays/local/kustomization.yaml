@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: serviceops-local
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+secretGenerator:
+  - name: serviceops-runtime
+    literals:
+      - postgres-password=serviceops_dev
+      - jwt-signing-key=local-development-signing-key-change-me-2026
+      - operator-password=operator_dev_2026
+      - viewer-password=viewer_dev_2026
+
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    serviceops.io/credential-scope: isolated-local-development-only
+
+images:
+  - name: serviceops-backend
+    newName: serviceops-backend
+    newTag: kubernetes-local
+  - name: serviceops-ai
+    newName: serviceops-ai
+    newTag: kubernetes-local
+  - name: serviceops-frontend
+    newName: serviceops-frontend
+    newTag: kubernetes-local

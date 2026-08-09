@@ -10,6 +10,9 @@ A citation-enforced knowledge assistant retrieves operational guidance from vers
 runbooks and abstains when those sources do not support an answer.
 An opt-in OpenTelemetry pipeline correlates metrics, logs, and distributed traces across
 HTTP, PostgreSQL, and Kafka, with provisioned SLO dashboards and tested alert delivery.
+A hardened Kustomize deployment runs the same platform on Kubernetes with restricted pods,
+persistent state, network isolation, autoscaling controls, and an isolated kind acceptance
+test.
 
 > Project status: **Baseline complete - active development**
 
@@ -98,6 +101,7 @@ or automatic document ingestion.
 | GitHub Actions | Independent Java, Python, frontend, Terraform, container image, and manual Azure deployment jobs |
 | OpenTelemetry Java/Python + Collector | Portable OTLP instrumentation, W3C context propagation, and trace-derived RED metrics |
 | Prometheus, Alertmanager, Grafana, Loki, Tempo | SLO records, error budgets, alert routing, dashboards, logs, and traces |
+| Kubernetes 1.36, Kustomize, kind | Restricted workload manifests, persistent state, scaling policy, and real-cluster verification |
 
 ## Run locally
 
@@ -178,6 +182,29 @@ and explicit destroy procedure.
 This repository contains and validates the deployment capability; it does not claim an
 always-on public environment. Running the workflow creates billable Azure resources until
 the matching destroy action completes.
+
+## Deploy to Kubernetes
+
+The base Kustomize resources deploy the frontend, backend, AI service, PostgreSQL, and
+Redpanda with non-root containers, Restricted Pod Security, health probes, resource bounds,
+least-privilege service accounts, NetworkPolicies, persistent claims, topology spreading,
+and disruption budgets. The production overlay adds replicated stateless services,
+`autoscaling/v2` policies, external Secrets, private-registry pulls, and a LoadBalancer
+frontend. Cluster-level choices such as TLS, DNS, storage, CNI, and metrics-server remain
+explicit prerequisites.
+
+Run the complete disposable kind acceptance test:
+
+```bash
+python scripts/validate_kubernetes.py
+python scripts/kubernetes_smoke_test.py
+```
+
+The manual `Kubernetes deployment` workflow builds immutable GHCR images, server-validates
+the rendered resources, applies them to an environment namespace, waits for readiness, and
+runs the same-origin smoke test. Its confirmed destroy mode removes only that namespace.
+See the [Kubernetes deployment guide](k8s/README.md) for tools, GitHub Environment secrets,
+direct deployment, observability integration, recovery behavior, and production boundaries.
 
 ## Build analytics locally
 
@@ -268,6 +295,14 @@ python scripts/validate_power_bi_model.py
 dbt build --project-dir dbt --profiles-dir dbt
 ```
 
+Kubernetes manifests (kubectl 1.34+, checked against Kubernetes 1.36):
+
+```bash
+python scripts/validate_kubernetes.py
+kubectl kustomize k8s/overlays/local
+kubectl kustomize k8s/overlays/production
+```
+
 ## Public API
 
 - `POST /api/auth/login` (public credential exchange)
@@ -305,10 +340,11 @@ invalid-message handling.
 - [Analytics pipeline, metrics, and Power BI model](analytics/README.md)
 - [Observability stack, objectives, and validation](observability/README.md)
 - [Observability response runbook](docs/observability-runbook.md)
+- [Kubernetes deployment, verification, and operations](k8s/README.md)
 
 ## Verified baseline
 
-The latest local regression on 6 August 2026 measured:
+The latest local regression on 9 August 2026 measured:
 
 - Java: 34 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
@@ -347,8 +383,12 @@ The latest local regression on 6 August 2026 measured:
   available with no browser console warnings or errors.
 - Azure deployment: Terraform 1.15.8 formatting and AzureRM 4.81.0 schema validation
   passed; the credential-free mocked plan test verified the network/ingress/identity
-  boundaries; actionlint passed for both workflows; and the cloud-style smoke script passed
+  boundaries; actionlint passed for all three workflows; and the cloud-style smoke script passed
   through the public Nginx boundary. No paid Azure resources were created in this local run.
+- Kubernetes: both overlays passed source, Kustomize, strict Kubernetes 1.36 schema, and
+  server-side validation; a disposable kind 1.36.1 cluster brought all five workloads Ready,
+  denied backend Secret reads, completed two event round trips, retained a classified ticket
+  across PostgreSQL pod replacement, and recovered after Redpanda pod replacement.
 - Model: 40 synthetic training rows; the fixed held-out split measured `0.60` category
   accuracy and `0.50` priority accuracy. These small-sample scores are reproducibility
   evidence, not production performance claims.
@@ -356,7 +396,10 @@ The latest local regression on 6 August 2026 measured:
 ## Current limitations
 
 - The synthetic model dataset is deliberately small and non-production.
-- Kubernetes remains roadmap work and is not represented as complete.
+- The checked Kubernetes runtime is self-contained but its PostgreSQL and Redpanda
+  StatefulSets are single replicas. Production use requires an approved replicated data
+  design, backups, tested restoration, TLS/DNS, and cluster-specific capacity planning; a
+  successful local kind run is not a multi-node availability or load-test claim.
 - The checked observability topology is single-node and validated locally, not a claim of a
   highly available or capacity-tested telemetry control plane. Production use requires an
   approved external alert receiver, protected access, replicated durable storage, and an

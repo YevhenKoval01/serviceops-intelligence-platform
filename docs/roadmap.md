@@ -77,8 +77,21 @@ telemetry backend. Application instrumentation is portable: Azure can export to 
 configured HTTPS OTLP endpoint, while access control, replicated storage, capacity, retention,
 and the human notification provider remain deployment responsibilities.
 
-Authentication, local role-based access, Azure deployment, analytics, and the cited RAG
-baseline and observability are implemented and verified locally. Kubernetes remains roadmap
-work, not a placeholder integration. The repository must not be described as production-ready,
-highly available, or continuously cloud-hosted until the corresponding work is complete and
-verified in an actual subscription.
+## Delivered: Kubernetes deployment
+
+- Shared Kustomize resources for the five-service runtime and explicit local/production
+  overlays.
+- Restricted Pod Security, non-root execution, resource bounds, health probes,
+  least-privilege service accounts, ingress NetworkPolicies, persistent state, and disruption
+  controls.
+- Production stateless replicas, CPU autoscaling, private-registry pulls, external runtime
+  Secrets, a public LoadBalancer boundary, and a manually gated deploy/destroy workflow.
+- Strict Kubernetes 1.36 schema validation and a disposable kind acceptance test covering
+  the real event flow, RBAC denial, and PostgreSQL/Redpanda pod recovery.
+
+Authentication, local role-based access, Azure deployment, analytics, the cited RAG baseline,
+observability, and Kubernetes deployment are implemented. Kubernetes is verified in a real
+disposable kind cluster; it is not a claim that the bundled single-replica PostgreSQL and
+Redpanda data tier is highly available. The repository must not be described as
+production-ready, continuously cloud-hosted, or multi-zone until those properties are
+implemented and verified in the target environments.

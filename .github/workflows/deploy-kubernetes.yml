@@ -1,0 +1,219 @@
+name: Kubernetes deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Deploy or destroy the Kubernetes workload
+        required: true
+        type: choice
+        options:
+          - deploy
+          - destroy
+      environment:
+        description: Lowercase environment name used in the namespace
+        required: true
+        default: demo
+        type: string
+      confirm_destroy:
+        description: For destroy, enter the environment name exactly
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: kubernetes-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }} ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: kubernetes-${{ inputs.environment }}
+    env:
+      DEPLOY_ACTION: ${{ inputs.action }}
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      CONFIRM_DESTROY: ${{ inputs.confirm_destroy }}
+      KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+      OPERATOR_PASSWORD: ${{ secrets.OPERATOR_PASSWORD }}
+      VIEWER_PASSWORD: ${{ secrets.VIEWER_PASSWORD }}
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment_name="$DEPLOY_ENVIRONMENT"
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Kubernetes deployment is restricted to the main branch." >&2
+            exit 1
+          fi
+          if [[ ! "$environment_name" =~ ^[a-z0-9]([-a-z0-9]{0,38}[a-z0-9])?$ ]]; then
+            echo "Environment must be a lowercase DNS label of at most 40 characters." >&2
+            exit 1
+          fi
+          if [[ -z "$KUBE_CONFIG_DATA" ]]; then
+            echo "KUBE_CONFIG_DATA is not configured for this GitHub Environment." >&2
+            exit 1
+          fi
+          if [[ "$DEPLOY_ACTION" == 'deploy' ]]; then
+            for name in POSTGRES_PASSWORD JWT_SIGNING_KEY OPERATOR_PASSWORD VIEWER_PASSWORD REGISTRY_USERNAME REGISTRY_PASSWORD; do
+              if [[ -z "${!name}" ]]; then
+                echo "Required Kubernetes deployment secret $name is not configured." >&2
+                exit 1
+              fi
+            done
+            if (( ${#JWT_SIGNING_KEY} < 32 || ${#OPERATOR_PASSWORD} < 12 || ${#VIEWER_PASSWORD} < 12 )); then
+              echo "JWT_SIGNING_KEY must have at least 32 characters; account passwords need 12." >&2
+              exit 1
+            fi
+          fi
+          if [[ "$DEPLOY_ACTION" == 'destroy' && "$CONFIRM_DESTROY" != "$environment_name" ]]; then
+            echo "Destroy confirmation must exactly match the environment name." >&2
+            exit 1
+          fi
+
+      - name: Install kubectl 1.36.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            --output kubectl https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error \
+            --output kubectl.sha256 https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl.sha256
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+      - name: Configure isolated cluster credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/serviceops-kube"
+          printf '%s' "$KUBE_CONFIG_DATA" | base64 --decode > "$RUNNER_TEMP/serviceops-kube/config"
+          echo "KUBECONFIG=$RUNNER_TEMP/serviceops-kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        shell: bash
+        run: |
+          if [[ "$(kubectl auth can-i create deployments --namespace default)" != "yes" ]]; then
+            echo "The deployment identity cannot create namespaced workloads." >&2
+            exit 1
+          fi
+
+      - name: Sign in to GitHub Container Registry
+        if: inputs.action == 'deploy'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish immutable images
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image_tag="$GITHUB_SHA"
+          docker build --tag "ghcr.io/$owner/serviceops-backend:$image_tag" backend
+          docker build --tag "ghcr.io/$owner/serviceops-ai:$image_tag" --file ai-service/Dockerfile .
+          docker build --tag "ghcr.io/$owner/serviceops-frontend:$image_tag" frontend
+          docker push "ghcr.io/$owner/serviceops-backend:$image_tag"
+          docker push "ghcr.io/$owner/serviceops-ai:$image_tag"
+          docker push "ghcr.io/$owner/serviceops-frontend:$image_tag"
+          echo "SERVICEOPS_IMAGE_OWNER=$owner" >> "$GITHUB_ENV"
+          echo "SERVICEOPS_IMAGE_TAG=$image_tag" >> "$GITHUB_ENV"
+
+      - name: Create namespace and runtime secrets
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          namespace="serviceops-$DEPLOY_ENVIRONMENT"
+          kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl label namespace "$namespace" --overwrite \
+            pod-security.kubernetes.io/enforce=restricted \
+            pod-security.kubernetes.io/enforce-version=latest \
+            pod-security.kubernetes.io/audit=restricted \
+            pod-security.kubernetes.io/audit-version=latest \
+            pod-security.kubernetes.io/warn=restricted \
+            pod-security.kubernetes.io/warn-version=latest
+          kubectl --namespace "$namespace" create secret generic serviceops-runtime \
+            --from-literal=postgres-password="$POSTGRES_PASSWORD" \
+            --from-literal=jwt-signing-key="$JWT_SIGNING_KEY" \
+            --from-literal=operator-password="$OPERATOR_PASSWORD" \
+            --from-literal=viewer-password="$VIEWER_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl --namespace "$namespace" create secret docker-registry serviceops-registry \
+            --docker-server=ghcr.io \
+            --docker-username="$REGISTRY_USERNAME" \
+            --docker-password="$REGISTRY_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Render and server-validate deployment
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          namespace="serviceops-$DEPLOY_ENVIRONMENT"
+          cp -R k8s "$RUNNER_TEMP/serviceops-k8s"
+          overlay="$RUNNER_TEMP/serviceops-k8s/overlays/production"
+          sed -i "s/^namespace: serviceops$/namespace: $namespace/" "$overlay/kustomization.yaml"
+          sed -i "s/^  name: serviceops$/  name: $namespace/" "$overlay/namespace.yaml"
+          sed -i "s|newName: ghcr.io/yevhenkoval01/|newName: ghcr.io/$SERVICEOPS_IMAGE_OWNER/|" "$overlay/kustomization.yaml"
+          sed -i "s/newTag: main/newTag: $SERVICEOPS_IMAGE_TAG/g" "$overlay/kustomization.yaml"
+          kubectl kustomize "$overlay" > "$RUNNER_TEMP/serviceops-kubernetes.yaml"
+          kubectl apply --server-side --dry-run=server \
+            --field-manager=serviceops-deployment \
+            -f "$RUNNER_TEMP/serviceops-kubernetes.yaml"
+
+      - name: Apply deployment and wait for readiness
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          namespace="serviceops-$DEPLOY_ENVIRONMENT"
+          kubectl apply --server-side --field-manager=serviceops-deployment \
+            -f "$RUNNER_TEMP/serviceops-kubernetes.yaml"
+          kubectl --namespace "$namespace" rollout status statefulset/postgres --timeout=10m
+          kubectl --namespace "$namespace" rollout status statefulset/kafka --timeout=10m
+          kubectl --namespace "$namespace" rollout status deployment/backend --timeout=10m
+          kubectl --namespace "$namespace" rollout status deployment/ai-service --timeout=10m
+          kubectl --namespace "$namespace" rollout status deployment/frontend --timeout=10m
+
+      - name: Run public-boundary smoke test
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          namespace="serviceops-$DEPLOY_ENVIRONMENT"
+          kubectl --namespace "$namespace" port-forward service/frontend 3000:8080 \
+            >"$RUNNER_TEMP/port-forward.log" 2>&1 &
+          forward_pid=$!
+          trap 'kill "$forward_pid" 2>/dev/null || true' EXIT
+          SERVICEOPS_BASE_URL=http://127.0.0.1:3000 \
+          SERVICEOPS_OPERATOR_USERNAME=operator \
+          SERVICEOPS_OPERATOR_PASSWORD="$OPERATOR_PASSWORD" \
+            python scripts/cloud_smoke_test.py
+          kubectl --namespace "$namespace" get pods,pvc,service
+
+      - name: Destroy Kubernetes environment
+        if: inputs.action == 'destroy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          namespace="serviceops-$DEPLOY_ENVIRONMENT"
+          kubectl delete namespace "$namespace" --ignore-not-found --wait=true --timeout=15m
+          echo "Destroyed namespace $namespace. Registry images were retained." >> "$GITHUB_STEP_SUMMARY"

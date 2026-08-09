@@ -339,7 +339,7 @@ resource "azurerm_container_app" "frontend" {
 
       startup_probe {
         transport               = "HTTP"
-        port                    = 80
+        port                    = 8080
         path                    = "/health"
         interval_seconds        = 5
         timeout                 = 3
@@ -348,7 +348,7 @@ resource "azurerm_container_app" "frontend" {
 
       readiness_probe {
         transport               = "HTTP"
-        port                    = 80
+        port                    = 8080
         path                    = "/health"
         interval_seconds        = 10
         timeout                 = 3
@@ -357,7 +357,7 @@ resource "azurerm_container_app" "frontend" {
 
       liveness_probe {
         transport               = "HTTP"
-        port                    = 80
+        port                    = 8080
         path                    = "/health"
         initial_delay           = 10
         interval_seconds        = 20
@@ -370,7 +370,7 @@ resource "azurerm_container_app" "frontend" {
   ingress {
     external_enabled           = true
     allow_insecure_connections = false
-    target_port                = 80
+    target_port                = 8080
     transport                  = "auto"
 
     traffic_weight {

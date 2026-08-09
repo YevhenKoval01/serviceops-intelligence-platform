@@ -67,6 +67,7 @@ jobs:
         run: >-
           python -m ruff check src tests ../scripts/cloud_smoke_test.py
           ../scripts/observability_smoke_test.py ../scripts/validate_observability.py
+          ../scripts/kubernetes_smoke_test.py ../scripts/validate_kubernetes.py
           ../observability/alert-sink/server.py
       - name: Test
         run: python -m pytest
@@ -192,3 +193,36 @@ jobs:
         run: |
           python -m json.tool observability/grafana/dashboards/serviceops-overview.json >/dev/null
           python -m py_compile observability/alert-sink/server.py
+
+  kubernetes:
+    name: Kubernetes manifests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kubectl 1.36.2
+        run: |
+          curl --fail --location --silent --show-error --output kubectl \
+            https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error --output kubectl.sha256 \
+            https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl.sha256
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          chmod +x kubectl
+      - name: Validate source and rendered contracts
+        run: python scripts/validate_kubernetes.py --kubectl "$PWD/kubectl"
+      - name: Render overlays
+        run: |
+          ./kubectl kustomize k8s/overlays/local > /tmp/serviceops-local.yaml
+          ./kubectl kustomize k8s/overlays/production > /tmp/serviceops-production.yaml
+      - name: Install kubeconform 0.7.0
+        run: |
+          curl --fail --location --silent --show-error --output kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz
+          curl --fail --location --silent --show-error --output CHECKSUMS \
+            https://github.com/yannh/kubeconform/releases/download/v0.7.0/CHECKSUMS
+          grep 'kubeconform-linux-amd64.tar.gz' CHECKSUMS | sha256sum --check
+          tar -xzf kubeconform.tar.gz kubeconform
+      - name: Validate Kubernetes 1.36 schemas
+        run: >-
+          ./kubeconform -strict -summary -kubernetes-version 1.36.0
+          /tmp/serviceops-local.yaml /tmp/serviceops-production.yaml

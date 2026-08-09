@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - serviceaccounts.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - kafka.yaml
+  - backend.yaml
+  - ai-service.yaml
+  - frontend.yaml
+  - network-policies.yaml
+  - pod-disruption-budgets.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: serviceops-intelligence-platform
+    includeSelectors: false
+
+commonAnnotations:
+  app.kubernetes.io/managed-by: kustomize

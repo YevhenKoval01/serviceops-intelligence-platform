@@ -16,6 +16,8 @@ Compose smoke test proves the real cross-service flow.
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
 | Terraform | Formatting, AzureRM schema validation, and a credential-free mocked plan asserting private PostgreSQL, ingress boundaries, managed ACR access, all event hubs, and a continuously running prediction worker |
 | Azure deployment smoke | Manual workflow OIDC login, ACR remote builds, Terraform plan/apply, frontend health, authenticated ticket creation, Event Hubs round trip, and eventual ML classification |
+| Kubernetes manifests | Both Kustomize overlays render, source invariants pass, and every built-in resource validates against strict Kubernetes 1.36 schemas |
+| Kubernetes runtime | Dedicated kind 1.36 cluster, server-side apply, Restricted Pod Security, all five rollouts, no service-account Secret access, same-origin authenticated event round trip, PostgreSQL pod replacement with ticket persistence, and Redpanda pod replacement with a second event round trip |
 | Analytics unit/static | Deterministic 100,000-event cardinality, stable seed digest, valid transition chains, input validation, generator lint, and Power BI TMDL source/measure checks |
 | Analytics integration | PostgreSQL 17 operational migrations, bulk lifecycle load, dbt seeds/models, source/generic/singular data tests, SLA consistency, transition integrity, and ticket coverage |
 | Observability static/rules | Compose overlay, Collector/Loki/Prometheus/Alertmanager configuration validation, dashboard contract, 30-day SLO records, and fixed `promtool` firing expectations |
@@ -37,7 +39,9 @@ AI service:
 ```bash
 cd ai-service
 python -m pip install -e ".[dev]"
-python -m ruff check src tests ../scripts/cloud_smoke_test.py
+python -m ruff check src tests ../scripts/cloud_smoke_test.py \
+  ../scripts/observability_smoke_test.py ../scripts/validate_observability.py \
+  ../scripts/kubernetes_smoke_test.py ../scripts/validate_kubernetes.py
 python -m pytest
 ```
 
@@ -132,16 +136,20 @@ Before the final baseline commit:
 15. Run the telemetry smoke test, then the component-down drill; require both applications'
     metrics, logs, and traces, a resolvable Kafka span link, the provisioned dashboard/data
     sources, firing delivery, application recovery, and a resolved notification.
+16. Render both Kubernetes overlays, run strict Kubernetes 1.36 schema checks, and execute
+    the disposable kind acceptance test including PostgreSQL and Redpanda pod replacement.
 
 GitHub Actions mirrors the language and Terraform commands and builds every Compose image
 after all quality jobs pass. Pull requests require no repository secrets. Azure deploy and
 destroy are separate manual actions guarded by OIDC and an exact destroy confirmation.
+Kubernetes deploy and destroy are separate manual actions guarded by environment-scoped
+cluster/registry credentials and an exact destroy confirmation.
 
 ## Intentional exclusions
 
 The baseline does not claim browser-engine end-to-end automation, application load metrics,
 security scanning, production model accuracy, cloud availability, or an HA telemetry backend.
-Playwright, performance, security, managed observability, and Kubernetes gates are documented
-deployment or roadmap work.
+Playwright, performance, security, managed observability, multi-cluster failover, and highly
+available stateful Kubernetes dependencies remain deployment or roadmap work.
 Power BI Desktop/Fabric refresh and visual QA remain environment-specific manual checks;
 CI validates the tracked semantic-model structure and its mart contract.

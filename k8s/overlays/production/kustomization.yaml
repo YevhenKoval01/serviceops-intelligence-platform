@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: serviceops
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - horizontal-pod-autoscalers.yaml
+
+patches:
+  - path: deployment-replicas.yaml
+  - path: frontend-service.yaml
+  - path: image-pull-secrets.yaml
+
+images:
+  - name: serviceops-backend
+    newName: ghcr.io/yevhenkoval01/serviceops-backend
+    newTag: main
+  - name: serviceops-ai
+    newName: ghcr.io/yevhenkoval01/serviceops-ai
+    newTag: main
+  - name: serviceops-frontend
+    newName: ghcr.io/yevhenkoval01/serviceops-frontend
+    newTag: main
