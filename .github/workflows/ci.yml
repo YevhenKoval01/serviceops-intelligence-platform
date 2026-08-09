@@ -246,11 +246,12 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Install kind 0.32.0 and kubectl 1.36.2
         run: |
-          curl --fail --location --silent --show-error --output kind \
+          curl --fail --location --silent --show-error --output kind-linux-amd64 \
             https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64
           curl --fail --location --silent --show-error --output kind.sha256sum \
             https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64.sha256sum
           sha256sum --check kind.sha256sum
+          mv kind-linux-amd64 kind
           chmod +x kind
           curl --fail --location --silent --show-error --output kubectl \
             https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl
