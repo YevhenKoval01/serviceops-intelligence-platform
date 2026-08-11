@@ -72,3 +72,21 @@ def test_rejects_malformed_knowledge_document(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="must start with metadata"):
         KnowledgeBase(tmp_path)
+
+
+def test_rejects_duplicate_knowledge_metadata(tmp_path: Path) -> None:
+    (tmp_path / "duplicate.md").write_text(
+        """---
+id: first-id
+id: overwritten-id
+title: Duplicate metadata
+revision: 2026-08-11
+---
+## Guidance
+Escalate the ticket to a human operator.
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate metadata key 'id'"):
+        KnowledgeBase(tmp_path)

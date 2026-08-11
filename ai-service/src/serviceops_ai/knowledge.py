@@ -134,9 +134,15 @@ def _parse_document(path: Path, knowledge_path: Path) -> list[KnowledgeChunk]:
     metadata: dict[str, str] = {}
     for line in lines[1:metadata_end]:
         key, separator, value = line.partition(":")
-        if not separator or not value.strip():
+        key = key.strip()
+        value = value.strip()
+        if not separator or not key or not value:
             raise ValueError(f"Invalid metadata in knowledge document {path.name}")
-        metadata[key.strip()] = value.strip()
+        if key in metadata:
+            raise ValueError(
+                f"Duplicate metadata key '{key}' in knowledge document {path.name}"
+            )
+        metadata[key] = value
     required = {"id", "title", "revision"}
     if missing := required - metadata.keys():
         raise ValueError(f"Knowledge document {path.name} is missing {sorted(missing)}")

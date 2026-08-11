@@ -78,6 +78,9 @@ reproducible TF-IDF index at startup. Retrieval combines content and title relev
 lexical-support gate. A deterministic extractive generator selects only sentences from the
 retrieved chunks and adds a numbered citation to every answer item.
 
+Each runbook must define one non-empty `id`, `title`, and `revision` metadata field. Missing,
+empty, or duplicate metadata causes startup to fail instead of creating ambiguous citations.
+
 Unsupported questions return an explicit human-review response with no citations; the
 assistant does not use general model knowledge to fill gaps. The fixed evaluation set covers
 12 answerable questions and 4 unrelated questions. This is a deliberately small, local RAG
