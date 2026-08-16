@@ -18,7 +18,7 @@ Compose smoke test proves the real cross-service flow.
 | Azure deployment smoke | Manual workflow OIDC login, ACR remote builds, Terraform plan/apply, frontend health, authenticated ticket creation, Event Hubs round trip, and eventual ML classification |
 | Kubernetes manifests | Both Kustomize overlays render, source invariants pass, and every built-in resource validates against strict Kubernetes 1.36 schemas |
 | Kubernetes runtime | Dedicated kind 1.36 cluster, server-side apply, Restricted Pod Security, all five rollouts, no service-account Secret access, same-origin authenticated event round trip, PostgreSQL pod replacement with ticket persistence, and Redpanda pod replacement with a second event round trip |
-| Kubernetes browser | Playwright invalid-login isolation, viewer read-only and cited-guidance journey, and operator create/classify/resolve journey through the kind-hosted Nginx boundary |
+| Kubernetes browser | Playwright invalid-login isolation, viewer read-only and cited-guidance journey, and operator create/classify/resolve journey on Chromium, Firefox, and WebKit through the kind-hosted Nginx boundary |
 | Kubernetes load | k6 constant-arrival-rate baseline at one iteration/second for 30 seconds, content/error thresholds, and endpoint-specific p95 thresholds through the same boundary |
 | Security | CodeQL extended queries for Java/Kotlin, JavaScript/TypeScript, Python, and Actions; Trivy dependency, tracked-secret, Docker/Terraform/Kubernetes configuration, and runtime-image gates; CycloneDX SBOM artifacts |
 | Analytics unit/static | Deterministic 100,000-event cardinality, stable seed digest, valid transition chains, input validation, generator lint, and Power BI TMDL source/measure checks |
@@ -63,14 +63,15 @@ Disposable Kubernetes browser and load gates:
 ```bash
 cd frontend
 npm ci
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 cd ..
 python scripts/kubernetes_smoke_test.py --quality-gates
 ```
 
-Playwright evidence is kept under `frontend/playwright-report` and `frontend/test-results`.
-The k6 JSON summary is kept under `performance/results`. CI uploads those ignored paths for
-14 days. The complete security workflow is described in `docs/security-testing.md`.
+Each Playwright journey runs on Chromium, Firefox, and WebKit. Evidence is kept under
+`frontend/playwright-report` and `frontend/test-results`. The k6 JSON summary is kept under
+`performance/results`. CI uploads those ignored paths for 14 days. The complete security
+workflow is described in `docs/security-testing.md`.
 
 Full stack:
 
@@ -167,11 +168,11 @@ cluster/registry credentials and an exact destroy confirmation.
 
 ## Intentional exclusions
 
-The baseline now includes browser-engine end-to-end automation, a bounded application load
-profile, and automated security scanning. It does not claim broad browser compatibility,
-penetration-test coverage, stress/soak results, production capacity, production model
-accuracy, cloud availability, or an HA telemetry backend. Managed observability,
-multi-cluster failover, and highly available stateful Kubernetes dependencies remain
-deployment or roadmap work.
+The baseline now includes Chromium, Firefox, and WebKit end-to-end automation, a bounded
+application load profile, and automated security scanning. It does not claim operating-system,
+device, or browser-version compatibility, penetration-test coverage, stress/soak results,
+production capacity, production model accuracy, cloud availability, or an HA telemetry backend.
+Managed observability, multi-cluster failover, and highly available stateful Kubernetes
+dependencies remain deployment or roadmap work.
 Power BI Desktop/Fabric refresh and visual QA remain environment-specific manual checks;
 CI validates the tracked semantic-model structure and its mart contract.

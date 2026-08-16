@@ -18,9 +18,20 @@ export default defineConfig({
         ["html", { outputFolder: "playwright-report", open: "never" }],
       ]
     : "line",
+  projects: channel
+    ? [
+        {
+          name: `chromium-${channel}`,
+          use: { browserName: "chromium", channel },
+        },
+      ]
+    : [
+        { name: "chromium", use: { browserName: "chromium" } },
+        { name: "firefox", use: { browserName: "firefox" } },
+        { name: "webkit", use: { browserName: "webkit" } },
+      ],
   use: {
     baseURL: process.env.SERVICEOPS_BASE_URL ?? "http://localhost:3000",
-    channel,
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",

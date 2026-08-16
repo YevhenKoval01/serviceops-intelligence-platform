@@ -60,16 +60,16 @@ is deleted in `finally` unless `--keep-cluster` is explicitly supplied.
 python scripts/validate_kubernetes.py
 cd frontend
 npm ci
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 cd ..
 python scripts/kubernetes_smoke_test.py --quality-gates
 ```
 
 The Playwright suite checks invalid-login isolation, viewer read-only behavior plus cited
-knowledge rendering, and an operator's create/classify/resolve journey. On Linux it uses
-Playwright's installed Chromium by default; `--playwright-channel msedge` can select a locally
-installed Edge channel. Reports are written below `frontend/playwright-report` and
-`frontend/test-results`.
+knowledge rendering, and an operator's create/classify/resolve journey on Chromium, Firefox,
+and WebKit. `--playwright-channel msedge` intentionally replaces that default matrix with a
+single locally installed Chromium channel for targeted diagnosis. Reports are written below
+`frontend/playwright-report` and `frontend/test-results`.
 
 The k6 baseline schedules one iteration per second for 30 seconds. Each iteration checks
 frontend health, the authenticated ticket queue, and a grounded knowledge response. It
@@ -171,7 +171,7 @@ operator-based design. The manifests do not install a cloud load balancer, certi
 issuer, DNS controller, storage driver, CNI, metrics-server, secret manager, or multi-cluster
 failover system because those are cluster-level choices, not safe application placeholders.
 
-The checked browser and load paths likewise establish a reproducible acceptance baseline,
-not broad browser compatibility or a multi-node availability/load claim. Security automation
-is documented in `docs/security-testing.md`; automated findings must still be interpreted in
-the target environment and do not replace an approved security assessment.
+The checked browser and load paths likewise establish a reproducible acceptance baseline, not
+an operating-system, device, browser-version, or multi-node availability/load claim. Security
+automation is documented in `docs/security-testing.md`; automated findings must still be
+interpreted in the target environment and do not replace an approved security assessment.

@@ -204,14 +204,15 @@ Run the complete disposable kind acceptance test:
 
 ```bash
 python scripts/validate_kubernetes.py
-cd frontend && npm ci && npx playwright install chromium && cd ..
+cd frontend && npm ci && npx playwright install chromium firefox webkit && cd ..
 python scripts/kubernetes_smoke_test.py --quality-gates
 ```
 
-The quality-gate mode runs three browser journeys and a 30-second, one-iteration-per-second
-k6 profile through the same forwarded Nginx boundary before exercising PostgreSQL and
-Redpanda recovery. k6 uses its pinned container when no local binary is installed. See the
-[Kubernetes deployment guide](k8s/README.md) for the measured thresholds and evidence paths.
+The quality-gate mode runs the three browser journeys on Chromium, Firefox, and WebKit, then a
+30-second, one-iteration-per-second k6 profile through the same forwarded Nginx boundary before
+exercising PostgreSQL and Redpanda recovery. k6 uses its pinned container when no local binary
+is installed. See the [Kubernetes deployment guide](k8s/README.md) for the measured thresholds
+and evidence paths.
 
 The manual `Kubernetes deployment` workflow builds immutable GHCR images, server-validates
 the rendered resources, applies them to an environment namespace, waits for readiness, and
@@ -437,6 +438,7 @@ The latest local regression on 9 August 2026 measured:
   managed secret store remain roadmap work. Local Compose still uses development HTTP;
   Azure application ingress and managed service connections use TLS.
 - Browser automation, load measurements, and security scanning are checked baselines, not
-  exhaustive assurance. The browser suite currently targets one engine per run, the load
-  profile is deliberately short and low-rate, and automated scanners do not replace threat
-  modeling, penetration testing, stress/soak testing, or production capacity validation.
+  exhaustive assurance. The browser suite covers Chromium, Firefox, and WebKit on one runner,
+  but not an operating-system, device, or browser-version matrix. The load profile is deliberately
+  short and low-rate, and automated scanners do not replace threat modeling, penetration testing,
+  stress/soak testing, or production capacity validation.
