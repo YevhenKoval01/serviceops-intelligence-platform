@@ -219,9 +219,12 @@ dbt is read-only toward application tables and owns only its analytical schemas.
 The AI service also owns the read-only knowledge index. Six tracked Markdown runbooks are
 parsed into 18 heading-aware chunks at startup; their content and metadata produce a stable
 index version digest. Query-time ranking combines word and phrase TF-IDF similarity, title
-similarity, and lexical overlap. The extractive answer stage can use only retrieved source
-sentences, labels each item with a citation number, and abstains when no passage crosses the
-support gate. No user question or generated response is persisted.
+similarity, and lexical overlap. Before retrieval, a deterministic guard normalizes the question
+and rejects direct instruction-override, role-injection, jailbreak, citation-bypass, and
+protected-context exfiltration patterns. Rejected questions receive no source content or
+citations. The extractive answer stage can use only retrieved source sentences, labels each item
+with a citation number, and abstains when no passage crosses the support gate. No user question
+or generated response is persisted.
 
 ## Security boundary
 

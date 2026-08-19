@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,39 @@ from sklearn.metrics.pairwise import linear_kernel
 
 MIN_RETRIEVAL_SCORE = 0.08
 MAX_CITATIONS = 3
+PROMPT_SAFETY_MESSAGE = (
+    "I cannot follow instructions to override safety controls or expose protected context. "
+    "Rephrase the request as a ServiceOps question or escalate it to a human operator."
+)
+PROMPT_ATTACK_PATTERNS = tuple(
+    re.compile(pattern, flags=re.IGNORECASE | re.DOTALL)
+    for pattern in (
+        (
+            r"\b(?:ignore|disregard|forget|override|bypass)\b.{0,80}"
+            r"\b(?:previous|prior|above|system|developer|safety|hidden)\b.{0,40}"
+            r"\b(?:instructions?|rules?|policy|prompt|controls?)\b"
+        ),
+        (
+            r"\b(?:reveal|show|print|expose|leak|dump|return)\b.{0,80}"
+            r"\b(?:system|developer|hidden)\s+(?:prompt|message|instructions?)\b"
+        ),
+        (
+            r"\b(?:reveal|show|print|expose|leak|dump|return)\b.{0,80}"
+            r"\b(?:secrets?|passwords?|credentials?|access tokens?|api keys?|"
+            r"environment variables?)\b"
+        ),
+        r"<\s*/?\s*(?:system|developer|assistant)\s*>",
+        r"\[(?:system|developer|assistant)\]",
+        r"(?:^|\s)(?:system|developer|assistant)\s*:",
+        r"\b(?:jailbreak|dan mode|developer mode|unrestricted mode)\b",
+        (
+            r"\b(?:do not|don't)\s+(?:cite|use|follow)\b.{0,40}"
+            r"\b(?:sources?|runbooks?|instructions?)\b"
+        ),
+        r"\b(?:invent|fabricate|make up)\b.{0,50}\b(?:answer|procedure|policy|facts?)\b",
+    )
+)
+INVISIBLE_CONTROL_CHARACTERS = re.compile(r"[\u200b-\u200f\u2060\ufeff]")
 
 
 @dataclass(frozen=True)
@@ -68,6 +102,13 @@ class KnowledgeBase:
         self.index_version = _index_digest(self.chunks)
 
     def ask(self, question: str, top_k: int = MAX_CITATIONS) -> KnowledgeAnswer:
+        if _contains_prompt_attack(question):
+            return KnowledgeAnswer(
+                answer=PROMPT_SAFETY_MESSAGE,
+                citations=(),
+                grounded=False,
+            )
+
         query_vector = self._vectorizer.transform([question])
         content_scores = linear_kernel(query_vector, self._chunk_vectors).ravel()
         title_scores = linear_kernel(query_vector, self._title_vectors).ravel()
@@ -107,6 +148,13 @@ class KnowledgeBase:
             citations=citations,
             grounded=True,
         )
+
+
+def _contains_prompt_attack(question: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", question)
+    normalized = INVISIBLE_CONTROL_CHARACTERS.sub("", normalized)
+    normalized = " ".join(normalized.split())
+    return any(pattern.search(normalized) for pattern in PROMPT_ATTACK_PATTERNS)
 
 
 def _load_chunks(knowledge_path: Path) -> list[KnowledgeChunk]:

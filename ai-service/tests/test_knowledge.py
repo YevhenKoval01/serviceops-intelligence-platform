@@ -8,6 +8,7 @@ from serviceops_ai.knowledge import KnowledgeBase
 ROOT = Path(__file__).parents[1]
 KNOWLEDGE_PATH = ROOT / "knowledge"
 EVALUATION_PATH = ROOT / "data" / "rag_evaluation.json"
+SAFETY_EVALUATION_PATH = ROOT / "data" / "rag_safety_evaluation.json"
 
 
 @pytest.fixture(scope="module")
@@ -65,6 +66,25 @@ def test_curated_retrieval_evaluation(knowledge_base: KnowledgeBase) -> None:
         assert result.citations == ()
 
     assert correct / len(evaluation["answerable"]) >= 0.9
+
+
+def test_prompt_safety_evaluation_blocks_attacks_without_false_positives(
+    knowledge_base: KnowledgeBase,
+) -> None:
+    evaluation = json.loads(SAFETY_EVALUATION_PATH.read_text(encoding="utf-8"))
+
+    for example in evaluation["blocked"]:
+        result = knowledge_base.ask(example["question"])
+        assert result.grounded is False, example["id"]
+        assert result.citations == (), example["id"]
+        assert "cannot follow instructions" in result.answer, example["id"]
+
+    for example in evaluation["allowed"]:
+        result = knowledge_base.ask(example["question"])
+        retrieved = {citation.document_id for citation in result.citations}
+        assert result.grounded is True, example["id"]
+        assert example["expectedDocument"] in retrieved, example["id"]
+        assert all(citation.excerpt in result.answer for citation in result.citations)
 
 
 def test_rejects_malformed_knowledge_document(tmp_path: Path) -> None:

@@ -85,9 +85,11 @@ empty, or duplicate metadata causes startup to fail instead of creating ambiguou
 
 Unsupported questions return an explicit human-review response with no citations; the
 assistant does not use general model knowledge to fill gaps. The fixed evaluation set covers
-12 answerable questions and 4 unrelated questions. This is a deliberately small, local RAG
-baseline: it has no external LLM dependency, vector database, web search, conversation memory,
-or automatic document ingestion.
+12 answerable questions and 4 unrelated questions. A separate prompt-safety set covers 12
+direct injection or protected-context exfiltration attempts and 6 legitimate questions that
+contain security-related language. Detected attacks return an explicit refusal with no
+citations. This is a deliberately small, local RAG baseline: it has no external LLM dependency,
+vector database, web search, conversation memory, or automatic document ingestion.
 
 ## Technology choices
 
@@ -367,9 +369,10 @@ component checks where noted:
 - Java: 34 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
   locking through Testcontainers.
-- Python (rechecked 19 August 2026): Ruff passed and 28 pytest tests passed, including
+- Python (rechecked 19 August 2026): Ruff passed and 30 pytest tests passed, including
   deterministic corpus regeneration, scenario-grouped validation, dataset-aware model caching,
-  shared JWT validation, RAG retrieval/abstention evaluation, and Event Hubs Kafka validation.
+  shared JWT validation, RAG retrieval/abstention and prompt-safety evaluation, and Event Hubs
+  Kafka validation.
 - Frontend: ESLint passed, 19 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
 - Analytics: Ruff passed and 4 pytest tests passed; the fixed fixture generated 40,000
@@ -434,8 +437,10 @@ component checks where noted:
   environment-specific retention/capacity plan.
 - The bundled knowledge base is intentionally small and manually curated. The RAG baseline
   uses deterministic extractive generation rather than a general-purpose LLM; automatic
-  ingestion, conversation memory, human approval, and broader prompt-safety evaluation remain
-  roadmap work.
+  ingestion, conversation memory, and human approval remain roadmap work. The checked
+  prompt-safety corpus covers direct user-message injection and protected-context exfiltration,
+  not indirect document poisoning, multilingual or broadly encoded attacks, or an independent
+  red-team assessment.
 - The Power BI semantic model and measures are source controlled, but cross-platform CI does
   not claim a Desktop/Fabric refresh or a published dashboard. Operational SLA enforcement,
   escalation, and ownership workflows remain separate roadmap work.
