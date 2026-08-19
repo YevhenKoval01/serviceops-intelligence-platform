@@ -34,7 +34,7 @@ class PredictionResponse(BaseModel):
                     "category": "TECHNICAL",
                     "priority": "HIGH",
                     "confidence": 0.87542,
-                    "modelVersion": "baseline-1",
+                    "modelVersion": "baseline-2",
                 }
             ]
         }
@@ -75,15 +75,15 @@ class ModelInfoResponse(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "modelVersion": "baseline-1",
+                    "modelVersion": "baseline-2",
                     "algorithm": "TfidfVectorizer + LogisticRegression",
                     "categories": ["ACCESS", "BILLING", "DELIVERY", "TECHNICAL"],
-                    "trainingRows": 40,
+                    "trainingRows": 1000,
                     "validationAccuracy": {
-                        "categoryAccuracy": 0.6,
-                        "priorityAccuracy": 0.5,
+                        "categoryAccuracy": 0.4967,
+                        "priorityAccuracy": 0.5133,
                     },
-                    "dataset": "Bundled synthetic, non-sensitive support tickets",
+                    "dataset": "Bundled deterministic synthetic support-ticket corpus",
                 }
             ]
         }

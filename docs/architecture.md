@@ -209,8 +209,11 @@ those duplicates while closing any pre-upgrade publication gap.
 Spring Boot is the normal writer to application tables, including `app_users`. Passwords are
 stored only as BCrypt hashes. The AI service does not connect to PostgreSQL. The model
 artifact is stored in the Compose `ai-model` volume and retrained only when a compatible
-`baseline-1` artifact is absent. The explicitly invoked analytics fixture generator is the
-only exception: it bulk-loads deterministic synthetic tickets and histories for validation.
+`baseline-2` artifact with the current dataset digest is absent. The bundled model corpus is
+generated deterministically from 40 reviewed scenario families. Validation holds out complete
+scenario families, so contextual variants of one scenario cannot appear in both training and
+validation. The explicitly invoked analytics fixture generator is the only exception to normal
+application writes: it bulk-loads deterministic synthetic tickets and histories for validation.
 dbt is read-only toward application tables and owns only its analytical schemas.
 
 The AI service also owns the read-only knowledge index. Six tracked Markdown runbooks are

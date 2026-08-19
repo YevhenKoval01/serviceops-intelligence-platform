@@ -10,7 +10,7 @@ Compose smoke test proves the real cross-service flow.
 | --- | --- |
 | Java unit and web slice | Login exchange, anonymous `401`, viewer `403`, request normalization and validation, RFC 7807 errors, transactional outbox state and retries, acknowledged Kafka delivery, prediction contract validation and idempotency, structured dead-letter records |
 | Java repository integration | Real PostgreSQL 17 container, Flyway schema validation through V4, BCrypt account record, JPA ticket and lifecycle persistence, JSONB outbox persistence, due-event locking, query ordering |
-| Python unit/API | Shared JWT validation, role denial, deterministic training, RAG parsing/index versioning, citation binding, fixed retrieval quality, abstention, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
+| Python unit/API | Reproducible 1,000-row model corpus, scenario-grouped validation, dataset-aware model cache, shared JWT validation, role denial, deterministic training, RAG parsing/index versioning, citation binding, fixed retrieval quality, abstention, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
 | Frontend component/API | Sign-in/session handling, bearer headers, viewer UI, knowledge answer/citation rendering, form validation and failures, queue states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
 | Compose smoke | Five health checks, real sign-in, role policy, shared Spring/FastAPI token, cited RAG answer and abstention through Nginx, invalid API request, ticket persistence, both Kafka topics, ML result, status update, summary totals |
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
@@ -42,6 +42,7 @@ AI service:
 ```bash
 cd ai-service
 python -m pip install -e ".[dev]"
+python -m serviceops_ai.dataset
 python -m ruff check src tests ../scripts/cloud_smoke_test.py \
   ../scripts/observability_smoke_test.py ../scripts/validate_observability.py \
   ../scripts/kubernetes_smoke_test.py ../scripts/validate_kubernetes.py

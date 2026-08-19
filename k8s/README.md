@@ -34,7 +34,7 @@ the application paths shown in the architecture. Enforcement requires a CNI that
 NetworkPolicy.
 
 The AI model volume is deliberately ephemeral in Kubernetes. Each AI pod reproducibly
-rebuilds the small bundled model when scheduled, which keeps inference pods independently
+rebuilds the bundled model when scheduled, which keeps inference pods independently
 scalable. PostgreSQL and Redpanda state is persistent.
 
 ## Full local verification with kind

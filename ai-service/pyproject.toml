@@ -26,6 +26,9 @@ dependencies = [
     "uvicorn[standard]==0.34.2",
 ]
 
+[project.scripts]
+serviceops-generate-training-data = "serviceops_ai.dataset:main"
+
 [project.optional-dependencies]
 dev = [
     "httpx==0.28.1",

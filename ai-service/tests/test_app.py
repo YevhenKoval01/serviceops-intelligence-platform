@@ -40,7 +40,7 @@ def test_predict_endpoint_and_model_info() -> None:
     assert response.status_code == 200
     assert set(response.json()) == {"category", "priority", "confidence", "modelVersion"}
     assert model_info.status_code == 200
-    assert model_info.json()["trainingRows"] == 40
+    assert model_info.json()["trainingRows"] == 1_000
 
 
 def test_predict_endpoint_returns_structured_validation_error() -> None:

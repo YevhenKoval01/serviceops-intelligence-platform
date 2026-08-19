@@ -115,7 +115,7 @@ curl --fail-with-body \
   "category": "TECHNICAL",
   "priority": "HIGH",
   "confidence": 0.87542,
-  "modelVersion": "baseline-1"
+  "modelVersion": "baseline-2"
 }
 ```
 

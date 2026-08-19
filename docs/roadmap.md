@@ -16,6 +16,18 @@ automated quality checks. The phases below begin only after the baseline remains
 - Evaluation data, quality metrics, model and prompt versioning.
 - Prompt-injection and unsafe-output tests.
 
+## Delivered: reproducible model corpus
+
+- Forty reviewed support scenarios expanded deterministically across five intake channels and
+  five operating contexts into 1,000 unique, non-sensitive training rows.
+- Source-controlled seed scenarios and generated corpus with a fixed reproducibility test.
+- Scenario-grouped validation that keeps all variants of one source scenario on the same side
+  of the split, plus dataset-digest model-cache invalidation.
+
+This removes the deliberately small 40-row fixture. The corpus remains synthetic regression
+evidence; representative production labels, privacy review, bias analysis, temporal validation,
+and drift monitoring remain prerequisites for production model use.
+
 ## Delivered: retrieval-augmented knowledge assistant
 
 - Six versioned, source-controlled operational runbooks split into heading-aware chunks.

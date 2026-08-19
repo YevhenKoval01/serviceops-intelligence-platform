@@ -25,7 +25,7 @@ public record TicketResponse(
         String predictedCategory,
         @Schema(example = "0.87542", minimum = "0", maximum = "1", nullable = true)
         BigDecimal predictionConfidence,
-        @Schema(example = "baseline-1", nullable = true)
+        @Schema(example = "baseline-2", nullable = true)
         String modelVersion,
         @Schema(example = "2026-07-30T10:00:00Z")
         Instant createdAt,

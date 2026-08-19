@@ -178,7 +178,8 @@ def main() -> int:
     assert_viewer_cannot_create_ticket(viewer_headers)
     assert_ai_role_boundary(viewer_headers)
     model_info = request(f"{AI_SERVICE}/model-info", headers=viewer_headers)
-    assert model_info["modelVersion"] == "baseline-1"
+    assert model_info["modelVersion"] == "baseline-2"
+    assert model_info["trainingRows"] == 1_000
     print("Authentication and role-based access checks passed.")
 
     knowledge_answer = request(
@@ -234,7 +235,7 @@ def main() -> int:
     else:
         raise TimeoutError("Prediction was not stored within 90 seconds")
 
-    assert ticket["modelVersion"] == "baseline-1"
+    assert ticket["modelVersion"] == "baseline-2"
     assert 0 <= float(ticket["predictionConfidence"]) <= 1
     tickets = request(f"{BACKEND}/api/tickets", headers=operator_headers)
     assert any(item["id"] == ticket_id for item in tickets)

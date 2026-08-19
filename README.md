@@ -18,9 +18,11 @@ source, dependency, secret, infrastructure, and container security gates.
 
 > Project status: **Baseline complete - active development**
 
-The machine-learning model is an educational baseline trained on a small bundled
-synthetic dataset. Its measured validation scores are available from `/model-info`; they
-must not be interpreted as production accuracy.
+The machine-learning model is an educational baseline trained on a reproducible bundled
+1,000-row synthetic corpus generated from 40 reviewed scenario families. Validation holds
+out complete scenario families, and its measured scores are available from `/model-info`;
+they must not be interpreted as production accuracy. The [dataset card](ai-service/data/README.md)
+documents provenance, label balance, regeneration, validation boundaries, and prohibited use.
 
 ![ServiceOps operator workspace showing the live classified ticket queue](docs/images/serviceops-operator-workspace.png)
 
@@ -273,6 +275,7 @@ AI service (Python 3.12+):
 cd ai-service
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"  # Windows
+.venv/Scripts/python -m serviceops_ai.dataset
 .venv/Scripts/python -m ruff check src tests ../scripts/cloud_smoke_test.py
 .venv/Scripts/python -m pytest
 ```
@@ -358,13 +361,15 @@ invalid-message handling.
 
 ## Verified baseline
 
-The latest local regression on 9 August 2026 measured:
+Local baseline evidence includes the full-stack regression from 9 August 2026 and later
+component checks where noted:
 
 - Java: 34 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
   locking through Testcontainers.
-- Python: Ruff passed and 24 pytest tests passed, including shared JWT validation, RAG
-  retrieval/abstention evaluation, and Event Hubs Kafka profile validation.
+- Python (rechecked 19 August 2026): Ruff passed and 28 pytest tests passed, including
+  deterministic corpus regeneration, scenario-grouped validation, dataset-aware model caching,
+  shared JWT validation, RAG retrieval/abstention evaluation, and Event Hubs Kafka validation.
 - Frontend: ESLint passed, 19 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
 - Analytics: Ruff passed and 4 pytest tests passed; the fixed fixture generated 40,000
@@ -408,13 +413,17 @@ The latest local regression on 9 August 2026 measured:
   Trivy gates fixed high/critical source dependencies, tracked-tree secrets, high/critical
   Docker/Terraform/Kubernetes misconfigurations, and fixed critical container findings while
   publishing CycloneDX SBOMs for all six runtime images.
-- Model: 40 synthetic training rows; the fixed held-out split measured `0.60` category
-  accuracy and `0.50` priority accuracy. These small-sample scores are reproducibility
-  evidence, not production performance claims.
+- Model (rechecked 19 August 2026): 1,000 unique synthetic training rows generated from 40
+  reviewed scenario families; the grouped holdout measured `0.4967` category accuracy and
+  `0.5133` priority accuracy. Whole scenario families are isolated between training and
+  validation, making this a stricter regression measure than the previous random-row split.
 
 ## Current limitations
 
-- The synthetic model dataset is deliberately small and non-production.
+- The expanded model corpus is synthetic and intended for deterministic regression. Production
+  training still requires approved representative labels, privacy review, bias analysis,
+  temporal validation, and drift monitoring; local grouped-holdout scores are not production
+  performance claims.
 - The checked Kubernetes runtime is self-contained but its PostgreSQL and Redpanda
   StatefulSets are single replicas. Production use requires an approved replicated data
   design, backups, tested restoration, TLS/DNS, and cluster-specific capacity planning; a

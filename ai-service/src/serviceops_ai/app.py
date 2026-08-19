@@ -155,7 +155,7 @@ def model_info(
         categories=CATEGORIES,
         trainingRows=current.training_rows,
         validationAccuracy=current.metrics,
-        dataset="Bundled synthetic, non-sensitive support tickets",
+        dataset="Bundled deterministic synthetic support-ticket corpus",
     )
 
 

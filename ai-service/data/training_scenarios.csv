@@ -1,0 +1,41 @@
+scenario_id,title,description,category,priority
+access-login-loop,Cannot sign in,My password is accepted but the customer portal keeps returning me to the login page.,ACCESS,MEDIUM
+access-new-starter,New starter needs account,Please create standard application access for the employee joining next Monday.,ACCESS,LOW
+access-admin-mfa,Administrator locked out,The only production administrator cannot pass multi factor authentication.,ACCESS,HIGH
+access-vpn-permission,VPN permission missing,My account connects to VPN but has no permission to reach internal systems.,ACCESS,MEDIUM
+access-token-reset,Reset authentication token,The mobile authenticator was replaced and the old token must be reset.,ACCESS,LOW
+access-finance-outage,Finance team access lost,All finance users suddenly receive access denied for the reporting portal.,ACCESS,HIGH
+access-role-request,Role request,Please add read only inventory permissions to my existing user account.,ACCESS,LOW
+access-sso-loop,SSO login loop,Single sign on loops between the identity provider and the dashboard.,ACCESS,MEDIUM
+access-privileged-expiry,Privileged account expired,Emergency privileged credentials expired during an active incident.,ACCESS,HIGH
+access-shared-mailbox,Shared mailbox permission,I need access to the shared customer support mailbox for my new role.,ACCESS,LOW
+billing-invoice-total,Invoice total is wrong,The latest invoice includes a duplicate monthly subscription charge.,BILLING,MEDIUM
+billing-refund-delay,Refund has not arrived,The approved refund is missing from our bank account after ten business days.,BILLING,MEDIUM
+billing-payment-outage,Payment service unavailable,Every customer card payment is failing during checkout right now.,BILLING,HIGH
+billing-address-change,Update billing address,Please change the company address printed on future invoices.,BILLING,LOW
+billing-renewal-charge,Unexpected renewal charge,We cancelled before renewal but the annual fee was still collected.,BILLING,HIGH
+billing-invoice-copy,Need invoice copy,Please send a PDF copy of the March invoice for our accounting records.,BILLING,LOW
+billing-tax-error,Tax value incorrect,The invoice applies sales tax although our exemption certificate is active.,BILLING,MEDIUM
+billing-downgrade-credit,Subscription downgrade credit,Confirm the credit amount after reducing our licensed user count.,BILLING,LOW
+billing-duplicate-transactions,Duplicate card transactions,Several customers see the same purchase charged twice this morning.,BILLING,HIGH
+billing-purchase-order,Purchase order reference,Add our new purchase order number to the next billing statement.,BILLING,LOW
+delivery-tracking-stalled,Package tracking stalled,The tracking page has shown the parcel at the same depot for four days.,DELIVERY,MEDIUM
+delivery-critical-parts,Critical parts delayed,Replacement hardware for the production server missed the guaranteed arrival.,DELIVERY,HIGH
+delivery-address-change,Change delivery address,Please redirect the unopened parcel to our new office reception.,DELIVERY,LOW
+delivery-damaged,Shipment arrived damaged,The delivered monitor has a cracked screen and crushed packaging.,DELIVERY,MEDIUM
+delivery-medication-missing,Medication shipment missing,The temperature controlled urgent parcel was marked delivered but is absent.,DELIVERY,HIGH
+delivery-proof,Request proof of delivery,Please provide the recipient signature for last week's shipment.,DELIVERY,LOW
+delivery-wrong-item,Wrong item delivered,The box contains a keyboard instead of the ordered network switch.,DELIVERY,MEDIUM
+delivery-missed-collection,Courier did not collect,The scheduled courier collection was missed for the second time.,DELIVERY,MEDIUM
+delivery-customs-hold,Production equipment held,Essential factory equipment is held at customs and production will stop.,DELIVERY,HIGH
+delivery-window,Delivery window question,What time should our office expect the standard stationery delivery.,DELIVERY,LOW
+technical-crash,Application crashes,The desktop client closes immediately whenever a user opens a saved report.,TECHNICAL,MEDIUM
+technical-api-outage,Production API is down,All API requests return server errors and customer workflows are blocked.,TECHNICAL,HIGH
+technical-export,How to export data,Please explain how to export a project list to a comma separated file.,TECHNICAL,LOW
+technical-database-timeout,Database connection timeout,The application cannot connect to the primary database after maintenance.,TECHNICAL,HIGH
+technical-layout,Screen layout issue,One button overlaps the heading on a small tablet display.,TECHNICAL,LOW
+technical-slow-reports,Reports load slowly,The weekly operations report takes more than three minutes to open.,TECHNICAL,MEDIUM
+technical-sync-outage,Data synchronization stopped,New orders have not synchronized to the warehouse system since midnight.,TECHNICAL,HIGH
+technical-browser-warning,Browser warning,The settings page shows a console warning but continues to work normally.,TECHNICAL,LOW
+technical-upload,File upload fails,Uploading documents over five megabytes ends with an unknown error.,TECHNICAL,MEDIUM
+technical-memory-alarm,Service memory alarm,The production service is restarting repeatedly after exhausting available memory.,TECHNICAL,HIGH
