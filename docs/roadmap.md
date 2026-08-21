@@ -14,7 +14,7 @@ automated quality checks. The phases below begin only after the baseline remains
 - SLA-breach prediction with a documented baseline comparison.
 - Human review and approval workflow.
 - Evaluation data, quality metrics, model and prompt versioning.
-- Indirect document-injection, multilingual or broadly encoded attacks, and independent
+- Indirect document-injection, additional languages and encoding schemes, and independent
   red-team testing.
 
 ## Delivered: reproducible model corpus
@@ -38,11 +38,13 @@ and drift monitoring remain prerequisites for production model use.
 - A fixed quality set covering 12 supported questions and 4 unrelated questions, plus
   local and Azure public-boundary smoke checks.
 - A deterministic direct prompt-injection and protected-context exfiltration guard, checked
-  against 12 adversarial and 6 security-related legitimate questions.
+  against 22 adversarial and 10 security-related legitimate questions. The corpus includes
+  English, Polish, Ukrainian, URL encoding, HTML entities, Base64, invisible characters, and
+  separator obfuscation.
 
 This is a controlled local RAG baseline without an external LLM, vector database, web search,
 conversation memory, or automatic ingestion. Human approval, indirect document poisoning,
-multilingual or broadly encoded attacks, and independent red-team testing remain AI-quality
+additional languages and encoding schemes, and independent red-team testing remain AI-quality
 roadmap work.
 
 ## Phase 1.3: reliability and QA

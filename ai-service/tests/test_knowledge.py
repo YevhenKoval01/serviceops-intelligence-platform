@@ -72,6 +72,12 @@ def test_prompt_safety_evaluation_blocks_attacks_without_false_positives(
     knowledge_base: KnowledgeBase,
 ) -> None:
     evaluation = json.loads(SAFETY_EVALUATION_PATH.read_text(encoding="utf-8"))
+    examples = evaluation["blocked"] + evaluation["allowed"]
+
+    assert evaluation["version"] == "prompt-safety-2"
+    assert len(evaluation["blocked"]) == 22
+    assert len(evaluation["allowed"]) == 10
+    assert len({example["id"] for example in examples}) == len(examples)
 
     for example in evaluation["blocked"]:
         result = knowledge_base.ask(example["question"])

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
+import html
 import re
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote
 
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
@@ -41,9 +45,37 @@ PROMPT_ATTACK_PATTERNS = tuple(
             r"\b(?:sources?|runbooks?|instructions?)\b"
         ),
         r"\b(?:invent|fabricate|make up)\b.{0,50}\b(?:answer|procedure|policy|facts?)\b",
+        (
+            r"\b(?:zignoruj|pomiń|zlekceważ)\b.{0,80}"
+            r"\b(?:poprzednie|wcześniejsze|systemowe|ukryte)\b.{0,40}"
+            r"\b(?:instrukcje|zasady|politykę|prompt|zabezpieczenia)\b"
+        ),
+        r"\b(?:obejdź|wyłącz)\b.{0,40}\b(?:zabezpieczenia|ograniczenia)\b",
+        (
+            r"\b(?:ujawnij|pokaż|wyświetl|wypisz|zwróć)\b.{0,80}"
+            r"\b(?:prompt systemowy|ukryte instrukcje|hasła|dane uwierzytelniające|"
+            r"tokeny dostępu|klucze api|zmienne środowiskowe)\b"
+        ),
+        (
+            r"\b(?:проігноруй|ігноруй|забудь)\b.{0,80}"
+            r"\b(?:попередні|системні|приховані)\b.{0,40}"
+            r"\b(?:інструкції|правила|політику|промпт|обмеження)\b"
+        ),
+        r"\b(?:обійди|вимкни)\b.{0,40}\b(?:захист|обмеження|правила безпеки)\b",
+        (
+            r"\b(?:розкрий|покажи|виведи|надрукуй|поверни)\b.{0,80}"
+            r"\b(?:системний промпт|приховані інструкції|паролі|облікові дані|"
+            r"токени доступу|ключі api|змінні середовища)\b"
+        ),
     )
 )
 INVISIBLE_CONTROL_CHARACTERS = re.compile(r"[\u200b-\u200f\u2060\ufeff]")
+SEPARATED_ASCII_WORD = re.compile(
+    r"(?<![A-Za-z])(?:[A-Za-z][._-]){3,}[A-Za-z](?![A-Za-z])"
+)
+BASE64_CANDIDATE = re.compile(
+    r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{16,}={0,2}(?![A-Za-z0-9+/_=-])"
+)
 
 
 @dataclass(frozen=True)
@@ -151,10 +183,44 @@ class KnowledgeBase:
 
 
 def _contains_prompt_attack(question: str) -> bool:
-    normalized = unicodedata.normalize("NFKC", question)
+    variants = [_normalize_safety_text(question)]
+    variants.extend(_decoded_base64_variants(variants[0]))
+    return any(
+        pattern.search(variant)
+        for variant in variants
+        for pattern in PROMPT_ATTACK_PATTERNS
+    )
+
+
+def _normalize_safety_text(value: str) -> str:
+    normalized = value
+    for _ in range(2):
+        decoded = html.unescape(unquote(normalized))
+        if decoded == normalized:
+            break
+        normalized = decoded
+    normalized = unicodedata.normalize("NFKC", normalized)
     normalized = INVISIBLE_CONTROL_CHARACTERS.sub("", normalized)
-    normalized = " ".join(normalized.split())
-    return any(pattern.search(normalized) for pattern in PROMPT_ATTACK_PATTERNS)
+    normalized = SEPARATED_ASCII_WORD.sub(
+        lambda match: re.sub(r"[._-]", "", match.group()),
+        normalized,
+    )
+    return " ".join(normalized.split())
+
+
+def _decoded_base64_variants(value: str) -> list[str]:
+    variants: list[str] = []
+    for match in BASE64_CANDIDATE.finditer(value):
+        candidate = match.group()
+        padded = candidate + ("=" * (-len(candidate) % 4))
+        try:
+            decoded_bytes = base64.b64decode(padded, altchars=b"-_", validate=True)
+            decoded = decoded_bytes.decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError):
+            continue
+        if decoded and all(character.isprintable() or character.isspace() for character in decoded):
+            variants.append(_normalize_safety_text(decoded))
+    return variants
 
 
 def _load_chunks(knowledge_path: Path) -> list[KnowledgeChunk]:

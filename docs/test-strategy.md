@@ -10,7 +10,7 @@ Compose smoke test proves the real cross-service flow.
 | --- | --- |
 | Java unit and web slice | Login exchange, anonymous `401`, viewer `403`, request normalization and validation, RFC 7807 errors, transactional outbox state and retries, acknowledged Kafka delivery, prediction contract validation and idempotency, structured dead-letter records |
 | Java repository integration | Real PostgreSQL 17 container, Flyway schema validation through V4, BCrypt account record, JPA ticket and lifecycle persistence, JSONB outbox persistence, due-event locking, query ordering |
-| Python unit/API | Reproducible 1,000-row model corpus, scenario-grouped validation, dataset-aware model cache, shared JWT validation, role denial, deterministic training, RAG parsing/index versioning, citation binding, fixed retrieval quality, abstention, direct prompt-injection and protected-context exfiltration rejection, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
+| Python unit/API | Reproducible 1,000-row model corpus, scenario-grouped validation, dataset-aware model cache, shared JWT validation, role denial, deterministic training, RAG parsing/index versioning, citation binding, fixed retrieval quality, abstention, English/Polish/Ukrainian and common encoded direct prompt-injection and protected-context exfiltration rejection, JSON Schema rejection, deterministic replay IDs, bounded producer retries |
 | Frontend component/API | Sign-in/session handling, bearer headers, viewer UI, knowledge answer/citation rendering, form validation and failures, queue states, delayed predictions, status updates, modal keyboard behavior, RFC 7807 parsing |
 | Compose smoke | Five health checks, real sign-in, role policy, shared Spring/FastAPI token, cited RAG answer and abstention through Nginx, invalid API request, ticket persistence, both Kafka topics, ML result, status update, summary totals |
 | Runtime fault injection | Ticket creation during a Kafka outage, durable retry metadata, broker recovery, backend restart, acknowledged relay, and eventual prediction |
@@ -149,8 +149,8 @@ Before the final baseline commit:
 12. Validate that the Power BI semantic model references the tested marts and contains all
     six required business measures without embedded credentials.
 13. Run the fixed RAG evaluation, require at least 90% retrieval recall within the top three,
-    require every unrelated question to abstain, reject all 12 direct prompt-safety attacks
-    without rejecting the 6 security-related legitimate questions, and exercise a cited answer
+    require every unrelated question to abstain, reject all 22 direct prompt-safety attacks
+    without rejecting the 10 security-related legitimate questions, and exercise a cited answer
     through Nginx.
 14. Validate the observability configurations with their pinned binaries and require the
     `promtool` SLO/availability alert fixtures to pass.
