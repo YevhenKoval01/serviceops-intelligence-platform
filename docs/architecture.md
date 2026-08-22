@@ -225,7 +225,9 @@ common separator obfuscation; and rejects English, Polish, and Ukrainian instruc
 role-injection, jailbreak, citation-bypass, and protected-context exfiltration patterns. Rejected
 questions receive no source content or citations. The extractive answer stage can use only
 retrieved source sentences, labels each item with a citation number, and abstains when no passage
-crosses the support gate. No user question or generated response is persisted.
+crosses the support gate. Runbook metadata, headings, and content pass through the same guard
+before chunk creation; a detected directive fails AI-service startup before the document enters
+the index. No user question or generated response is persisted.
 
 ## Security boundary
 

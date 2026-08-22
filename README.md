@@ -87,9 +87,11 @@ Unsupported questions return an explicit human-review response with no citations
 assistant does not use general model knowledge to fill gaps. The fixed evaluation set covers
 12 answerable questions and 4 unrelated questions. A separate prompt-safety set covers 22
 direct injection or protected-context exfiltration attempts in English, Polish, and Ukrainian,
-including URL, HTML-entity, Base64, invisible-character, and separator obfuscation, plus 10
-legitimate security-related questions. Detected attacks return an explicit refusal with no
-citations. This is a deliberately small, local RAG baseline: it has no external LLM dependency,
+including URL, HTML-entity, Base64, invisible-character, and separator obfuscation, plus 11
+legitimate security-related questions including safe negative-control guidance. Detected attacks
+return an explicit refusal with no citations. The same corpus is applied to runbook metadata,
+headings, and content before indexing; an unsafe document fails startup rather than becoming
+retrievable. This is a deliberately small, local RAG baseline: it has no external LLM dependency,
 vector database, web search, conversation memory, or automatic document ingestion.
 
 ## Technology choices
@@ -370,10 +372,10 @@ component checks where noted:
 - Java: 34 tests passed, including Spring Security role enforcement, PostgreSQL 17,
   Flyway V1-V4, lifecycle history, JPA, JSONB, outbox retry state, and concurrent row
   locking through Testcontainers.
-- Python (rechecked 21 August 2026): Ruff passed and 30 pytest tests passed, including
+- Python (rechecked 22 August 2026): Ruff passed and 31 pytest tests passed, including
   deterministic corpus regeneration, scenario-grouped validation, dataset-aware model caching,
-  shared JWT validation, RAG retrieval/abstention and prompt-safety evaluation, and Event Hubs
-  Kafka validation.
+  shared JWT validation, RAG retrieval/abstention, question and document prompt-safety
+  evaluation, and Event Hubs Kafka validation.
 - Frontend: ESLint passed, 19 Vitest tests passed, TypeScript compiled, and the Vite
   production bundle completed.
 - Analytics: Ruff passed and 4 pytest tests passed; the fixed fixture generated 40,000
@@ -440,9 +442,9 @@ component checks where noted:
   uses deterministic extractive generation rather than a general-purpose LLM; automatic
   ingestion, conversation memory, and human approval remain roadmap work. The checked
   prompt-safety corpus covers direct user-message injection and protected-context exfiltration
-  in English, Polish, and Ukrainian, including common encoded and obfuscated forms. It is not
-  coverage for indirect document poisoning, untested languages or custom ciphers, or an
-  independent red-team assessment.
+  in English, Polish, and Ukrainian, including common encoded and obfuscated forms, and rejects
+  the same directives in tracked runbooks before indexing. It is not coverage for untested
+  languages or custom ciphers, or an independent red-team assessment.
 - The Power BI semantic model and measures are source controlled, but cross-platform CI does
   not claim a Desktop/Fabric refresh or a published dashboard. Operational SLA enforcement,
   escalation, and ownership workflows remain separate roadmap work.

@@ -69,6 +69,30 @@ PROMPT_ATTACK_PATTERNS = tuple(
         ),
     )
 )
+PROMPT_SAFE_NEGATIONS = tuple(
+    re.compile(pattern, flags=re.IGNORECASE | re.DOTALL)
+    for pattern in (
+        (
+            r"\b(?:do not|don't|never)\b[^.!?\r\n]{0,120}"
+            r"\b(?:reveal|show|print|expose|leak|dump|return)\b[^.!?\r\n]{0,80}"
+            r"\b(?:(?:system|developer|hidden)\s+(?:prompt|message|instructions?)|"
+            r"secrets?|passwords?|credentials?|access tokens?|api keys?|"
+            r"environment variables?)\b"
+        ),
+        (
+            r"\b(?:nie|nigdy nie)\b[^.!?\r\n]{0,120}"
+            r"\b(?:ujawniaj|pokazuj|wyświetlaj|wypisuj|zwracaj)\b[^.!?\r\n]{0,80}"
+            r"\b(?:prompt systemowy|ukryte instrukcje|hasła|dane uwierzytelniające|"
+            r"tokeny dostępu|klucze api|zmienne środowiskowe)\b"
+        ),
+        (
+            r"\b(?:не|ніколи не)\b[^.!?\r\n]{0,120}"
+            r"\b(?:розкривай|показуй|виводь|друкуй|повертай)\b[^.!?\r\n]{0,80}"
+            r"\b(?:системний промпт|приховані інструкції|паролі|облікові дані|"
+            r"токени доступу|ключі api|змінні середовища)\b"
+        ),
+    )
+)
 INVISIBLE_CONTROL_CHARACTERS = re.compile(r"[\u200b-\u200f\u2060\ufeff]")
 SEPARATED_ASCII_WORD = re.compile(
     r"(?<![A-Za-z])(?:[A-Za-z][._-]){3,}[A-Za-z](?![A-Za-z])"
@@ -185,11 +209,12 @@ class KnowledgeBase:
 def _contains_prompt_attack(question: str) -> bool:
     variants = [_normalize_safety_text(question)]
     variants.extend(_decoded_base64_variants(variants[0]))
-    return any(
-        pattern.search(variant)
-        for variant in variants
-        for pattern in PROMPT_ATTACK_PATTERNS
-    )
+    for variant in variants:
+        for safe_pattern in PROMPT_SAFE_NEGATIONS:
+            variant = safe_pattern.sub("", variant)
+        if any(pattern.search(variant) for pattern in PROMPT_ATTACK_PATTERNS):
+            return True
+    return False
 
 
 def _normalize_safety_text(value: str) -> str:
@@ -205,7 +230,10 @@ def _normalize_safety_text(value: str) -> str:
         lambda match: re.sub(r"[._-]", "", match.group()),
         normalized,
     )
-    return " ".join(normalized.split())
+    normalized = re.sub(r"[^\S\r\n]+", " ", normalized)
+    normalized = re.sub(r"\r\n?", "\n", normalized)
+    normalized = re.sub(r" *\n *", "\n", normalized)
+    return re.sub(r"\n+", "\n", normalized).strip()
 
 
 def _decoded_base64_variants(value: str) -> list[str]:
@@ -278,6 +306,15 @@ def _parse_document(path: Path, knowledge_path: Path) -> list[KnowledgeChunk]:
     _append_section(sections, section, content)
     if not sections:
         raise ValueError(f"Knowledge document {path.name} has no usable content")
+
+    safety_text = list(metadata.values())
+    for section_name, section_lines in sections:
+        safety_text.append(section_name)
+        safety_text.extend(section_lines)
+    if _contains_prompt_attack("\n".join(safety_text)):
+        raise ValueError(
+            f"Knowledge document {path.name} failed prompt-safety validation"
+        )
 
     return [
         KnowledgeChunk(

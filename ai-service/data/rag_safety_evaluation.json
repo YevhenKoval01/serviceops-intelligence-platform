@@ -140,6 +140,11 @@
       "id": "normal-base64-ticket-reference",
       "question": "The external reference dGlja2V0LWlkLTEyMw== identifies a ticket with repeated HTTP 500 errors. What should I capture?",
       "expectedDocument": "technical-api-errors"
+    },
+    {
+      "id": "normal-negative-credential-guidance",
+      "question": "What should I do so I do not expose credentials or authorization headers when attaching an HTTP 500 response?",
+      "expectedDocument": "technical-api-errors"
     }
   ]
 }
