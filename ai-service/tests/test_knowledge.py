@@ -19,8 +19,8 @@ def knowledge_base() -> KnowledgeBase:
 def test_builds_reproducible_index(knowledge_base: KnowledgeBase) -> None:
     rebuilt = KnowledgeBase(KNOWLEDGE_PATH)
 
-    assert knowledge_base.document_count == 6
-    assert len(knowledge_base.chunks) == 18
+    assert knowledge_base.document_count == 12
+    assert len(knowledge_base.chunks) == 36
     assert knowledge_base.index_version == rebuilt.index_version
     assert knowledge_base.index_version.startswith("tfidf-extractive-1-")
 
@@ -29,7 +29,7 @@ def test_answer_is_grounded_and_every_claim_has_a_citation(
     knowledge_base: KnowledgeBase,
 ) -> None:
     result = knowledge_base.ask(
-        "What should I capture and do when multiple customers receive HTTP 500 errors?"
+        "What should I capture and do when multiple customers receive HTTP 500 API errors?"
     )
 
     assert result.grounded is True
@@ -53,6 +53,11 @@ def test_abstains_when_the_knowledge_base_has_no_support(
 
 def test_curated_retrieval_evaluation(knowledge_base: KnowledgeBase) -> None:
     evaluation = json.loads(EVALUATION_PATH.read_text(encoding="utf-8"))
+    assert evaluation["version"] == "retrieval-quality-2"
+    assert len(evaluation["answerable"]) == 24
+    assert len(evaluation["unanswerable"]) == 4
+    assert len({example["question"] for example in evaluation["answerable"]}) == 24
+
     correct = 0
     for example in evaluation["answerable"]:
         result = knowledge_base.ask(example["question"])

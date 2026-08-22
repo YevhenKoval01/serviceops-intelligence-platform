@@ -1,4 +1,5 @@
 {
+  "version": "retrieval-quality-2",
   "answerable": [
     {
       "question": "What should I do when an account is locked after repeated failed sign-ins?",
@@ -33,7 +34,7 @@
       "expectedDocument": "technical-api-errors"
     },
     {
-      "question": "Which measurements are useful when a customer workflow is slow?",
+      "question": "Which median and tail latency measurements are useful when a customer workflow is slow?",
       "expectedDocument": "technical-performance-degradation"
     },
     {
@@ -47,6 +48,54 @@
     {
       "question": "Should we publish an incident update when there is no material change?",
       "expectedDocument": "incident-communications"
+    },
+    {
+      "question": "Which checks are safe when an approved VPN client cannot establish a tunnel?",
+      "expectedDocument": "access-vpn-connectivity"
+    },
+    {
+      "question": "What VPN evidence should be collected before escalating a gateway connectivity failure?",
+      "expectedDocument": "access-vpn-connectivity"
+    },
+    {
+      "question": "What should I ask after a user clicked a suspicious email link and approved a sign-in?",
+      "expectedDocument": "security-phishing-report"
+    },
+    {
+      "question": "Which message evidence should be preserved for a reported phishing email?",
+      "expectedDocument": "security-phishing-report"
+    },
+    {
+      "question": "How should I safely recover space on a managed device with a nearly full system volume?",
+      "expectedDocument": "device-storage-pressure"
+    },
+    {
+      "question": "When should unexpected disk usage growth be escalated to endpoint engineering?",
+      "expectedDocument": "device-storage-pressure"
+    },
+    {
+      "question": "How do I trace an email that was accepted but never reached the recipient?",
+      "expectedDocument": "collaboration-email-delivery"
+    },
+    {
+      "question": "Which status code and queue evidence belongs in an email delivery escalation?",
+      "expectedDocument": "collaboration-email-delivery"
+    },
+    {
+      "question": "Which data owner, restore point, integrity, and authorization checks are required before restoring a deleted file from backup?",
+      "expectedDocument": "data-backup-restoration"
+    },
+    {
+      "question": "When does a failed integrity check during restoration require escalation?",
+      "expectedDocument": "data-backup-restoration"
+    },
+    {
+      "question": "Which deployment version, error rate, latency, and compatibility evidence should be compared before an approved release rollback?",
+      "expectedDocument": "change-release-rollback"
+    },
+    {
+      "question": "Which service signals verify that an approved rollback actually recovered customers?",
+      "expectedDocument": "change-release-rollback"
     }
   ],
   "unanswerable": [

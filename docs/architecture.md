@@ -216,8 +216,8 @@ validation. The explicitly invoked analytics fixture generator is the only excep
 application writes: it bulk-loads deterministic synthetic tickets and histories for validation.
 dbt is read-only toward application tables and owns only its analytical schemas.
 
-The AI service also owns the read-only knowledge index. Six tracked Markdown runbooks are
-parsed into 18 heading-aware chunks at startup; their content and metadata produce a stable
+The AI service also owns the read-only knowledge index. Twelve tracked Markdown runbooks are
+parsed into 36 heading-aware chunks at startup; their content and metadata produce a stable
 index version digest. Query-time ranking combines word and phrase TF-IDF similarity, title
 similarity, and lexical overlap. Before retrieval, a deterministic guard normalizes the question
 through Unicode, URL, and HTML canonicalization; inspects printable Base64 segments; collapses

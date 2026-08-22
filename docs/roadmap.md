@@ -31,11 +31,13 @@ and drift monitoring remain prerequisites for production model use.
 
 ## Delivered: retrieval-augmented knowledge assistant
 
-- Six versioned, source-controlled operational runbooks split into heading-aware chunks.
+- Twelve versioned, source-controlled operational runbooks split into 36 heading-aware chunks,
+  covering access, billing, delivery, security, device, collaboration, data recovery, change,
+  API, performance, and incident procedures.
 - Reproducible TF-IDF retrieval with title weighting and lexical-support gating.
 - Citation-bound extractive answers, an explicit unsupported-question abstention path, and
   authenticated access for both local roles.
-- A fixed quality set covering 12 supported questions and 4 unrelated questions, plus
+- A fixed quality set covering 24 supported questions and 4 unrelated questions, plus
   local and Azure public-boundary smoke checks.
 - A deterministic direct prompt-injection and protected-context exfiltration guard, checked
   against 22 adversarial and 11 security-related legitimate questions. The corpus includes
@@ -45,9 +47,9 @@ and drift monitoring remain prerequisites for production model use.
   before a tracked document enters the retrieval index.
 
 This is a controlled local RAG baseline without an external LLM, vector database, web search,
-conversation memory, or automatic ingestion. Human approval, signed ingestion provenance,
-additional languages and encoding schemes, and independent red-team testing remain AI-quality
-roadmap work.
+conversation memory, or automatic ingestion. Organization-specific content approval and
+ownership, signed ingestion provenance, additional languages and encoding schemes, and
+independent red-team testing remain AI-quality roadmap work.
 
 ## Phase 1.3: reliability and QA
 
